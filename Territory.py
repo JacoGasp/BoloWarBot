@@ -53,13 +53,19 @@ class Reign(object):
 
     def battle(self):
         attacker = Territory(self.obj.sample(1).iloc[0])
-        defender = Territory(self.obj.loc[random.choice(attacker.extended_neighbours)])
+        defender = Territory(self.obj.loc[(slice(None), random.choice(attacker.extended_neighbours)), :].iloc[0])
 
-        print(f"{attacker.COMUNE} is attacking {defender.COMUNE}... ⚔️")
+        print(
+            f"{attacker.COMUNE}, of the {attacker.SOVRANO}'s reign, is attacking {defender.COMUNE} of the {defender.SOVRANO}'s' reign... ⚔️")
 
         if attacker.attack() > defender.defend():
 
-            self.obj.drop(defender.COMUNE, inplace=True)
+            """The sovereign of the attacker must include the defender geometry, and the defender becomes owned by the
+            attacker's sovereign"""
+
+
+
+
             self.obj.loc[attacker.COMUNE].geometry = self.obj.loc[attacker.COMUNE].geometry.union(defender.geometry)
             print(f"{attacker.COMUNE} conquered {defender.COMUNE} 🗡")
             print(f"{len(self.obj)} remaining territories.\n")
