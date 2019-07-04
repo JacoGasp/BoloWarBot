@@ -1,5 +1,10 @@
 import pandas as pd
 import random
+from geopandas import GeoDataFrame
+import logging
+
+logging.basicConfig()
+logger = logging.getLogger("Reign")
 
 
 class Territory(pd.Series):
@@ -12,12 +17,8 @@ class Territory(pd.Series):
         return Territory
 
     @property
-    def SOVRANO(self):
-        return self.name[0]
-
-    @property
     def COMUNE(self):
-        return self.name[1]
+        return self.name
 
     @staticmethod
     def attack():
@@ -33,42 +34,52 @@ class Reign(object):
 
     def __init__(self, pandas_obj):
         self.obj = pandas_obj
+        self.remaing_territories = len(self.obj)
         # self.find_neighbors(pandas_obj)
-
-    @property
-    def SOVRANI(self):
-        return self.obj.index.get_level_values(0).tolist()
-
-    @property
-    def COMUNI(self):
-        return self.obj.index.get_level_values(1).tolist()
 
     def find_neighbors(self):
         neighbours = []
         for i, territory in self.obj.iterrows():
-            territory = Territory(territory)
-            n = self.obj[~self.obj.geometry.disjoint(territory.geometry)].reign.SOVRANI
-            neighbours.append([name for name in n if territory.name[0] != name])
+            n = self.obj[~self.obj.geometry.disjoint(territory.extended_geometry)].SOVRANO.tolist()
+            neighbours.append([name for name in n if territory.name != name])
         self.obj["extended_neighbours"] = neighbours
+
+    def _extend_geometry(self, attacker, defender):
+        new_geometry = self.obj[self.obj.SOVRANO == attacker.SOVRANO].loc[attacker.COMUNE].extended_geometry
+        logger.debug(f"Old geometry area: {new_geometry.area}")
+        new_geometry = new_geometry.union(self.obj.loc[defender.COMUNE].geometry)
+        logging.debug(f"new geometry area: {new_geometry.area}")
+        self.obj[self.obj.SOVRANO == attacker.SOVRANO].loc[attacker.COMUNE].extended_geometry = new_geometry
+
+    def _reduce_geometry(self, defender):
+        new_geometry = self.obj[self.obj.SOVRANO == defender.SOVRANO].loc[defender.COMUNE].extended_geometry
+        new_geometry = new_geometry.difference(defender.geometry)
+        self.obj[self.obj.SOVRANO == defender.SOVRANO].loc[defender.COMUNE].extended_geometry = new_geometry
 
     def battle(self):
         attacker = Territory(self.obj.sample(1).iloc[0])
-        defender = Territory(self.obj.loc[(slice(None), random.choice(attacker.extended_neighbours)), :].iloc[0])
+        defender = Territory(self.obj.loc[random.choice(attacker.extended_neighbours)])
 
         print(
-            f"{attacker.COMUNE}, of the {attacker.SOVRANO}'s reign, is attacking {defender.COMUNE} of the {defender.SOVRANO}'s' reign... ⚔️")
+            f"{attacker.COMUNE}, of the {attacker.SOVRANO}'s reign, is attacking {defender.COMUNE} of the {defender.SOVRANO}'s reign... ⚔️")
 
         if attacker.attack() > defender.defend():
-
+            print(f"{attacker.COMUNE} conquered {defender.COMUNE} 🗡")
             """The sovereign of the attacker must include the defender geometry, and the defender becomes owned by the
             attacker's sovereign"""
 
+            self._extend_geometry(attacker, defender)
 
+            if len(self.obj[self.obj.SOVRANO == defender.SOVRANO]) is GeoDataFrame:
+                self._reduce_geometry(defender)
+                self.obj.loc[defender.COMUNE].SOVRANO = attacker.SOVRANO
+                print()
 
+            else:
+                self.remaing_territories -= 1
+                print(f"{defender.SOVRANO} has been defeated. ✝️")
+                print(f"{self.remaing_territories} remaining territories.\n")
 
-            self.obj.loc[attacker.COMUNE].geometry = self.obj.loc[attacker.COMUNE].geometry.union(defender.geometry)
-            print(f"{attacker.COMUNE} conquered {defender.COMUNE} 🗡")
-            print(f"{len(self.obj)} remaining territories.\n")
             self.find_neighbors()
         else:
             print(f"{defender.COMUNE} resisted to the attack of {attacker.COMUNE} 🛡\n")
