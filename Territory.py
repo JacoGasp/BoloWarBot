@@ -17,7 +17,7 @@ class Territory(pd.Series):
         return Territory
 
     @property
-    def COMUNE(self):
+    def Territory(self):
         return self.name
 
     @staticmethod
@@ -35,54 +35,97 @@ class Reign(object):
     def __init__(self, pandas_obj):
         self.obj = pandas_obj
         self.remaing_territories = len(self.obj)
+        self.alive_empires = list(pandas_obj.index.values)
         # self.find_neighbors(pandas_obj)
 
-    def find_neighbors(self):
+    def update_empire_neighbours(self):
         neighbours = []
         for i, territory in self.obj.iterrows():
-            n = self.obj[~self.obj.geometry.disjoint(territory.extended_geometry)].SOVRANO.tolist()
-            neighbours.append([name for name in n if territory.name != name])
-        self.obj["extended_neighbours"] = neighbours
+            n = self.obj[~self.obj.geometry.disjoint(territory.empire_geometry)].Empire.tolist()
+            neighbours.append([name for name in n if territory.Empire != name])
+        self.obj["empire_neighbours"] = neighbours
 
-    def _extend_geometry(self, attacker, defender):
-        new_geometry = self.obj[self.obj.SOVRANO == attacker.SOVRANO].loc[attacker.COMUNE].extended_geometry
-        logger.debug(f"Old geometry area: {new_geometry.area}")
-        new_geometry = new_geometry.union(self.obj.loc[defender.COMUNE].geometry)
-        logging.debug(f"new geometry area: {new_geometry.area}")
-        self.obj[self.obj.SOVRANO == attacker.SOVRANO].loc[attacker.COMUNE].extended_geometry = new_geometry
+    def __expand_empire_geometry(self, attacker, defender):
+        old_geometry = self.obj.query(f'Empire == "{attacker.Empire}"').loc[attacker.Territory].empire_geometry
+        new_geometry = old_geometry.union(defender.geometry)
+        empire_territories_index = self.obj.query(f'Empire == "{attacker.Empire}"').index
+        self.obj.loc[empire_territories_index].empire_geometry = new_geometry
 
-    def _reduce_geometry(self, defender):
-        new_geometry = self.obj[self.obj.SOVRANO == defender.SOVRANO].loc[defender.COMUNE].extended_geometry
-        new_geometry = new_geometry.difference(defender.geometry)
-        self.obj[self.obj.SOVRANO == defender.SOVRANO].loc[defender.COMUNE].extended_geometry = new_geometry
+    def __reduce_empire_geometry(self, defender):
+        old_geometry = self.obj.query(f'Empire == "{defender.Empire}"').loc[defender.Territory].empire_geometry
+        new_geometry = old_geometry.difference(defender.geometry)
+
+        empire_terriories_index = self.obj.query(f'Empire == "{defender.Empire}"').index
+        self.obj.loc[empire_terriories_index].empire_geometry = new_geometry
+
+    def __get_alive_empires(self):
+        empires = self.obj.Empire.unique()
+        return list(empires)
 
     def battle(self):
-        attacker = Territory(self.obj.sample(1).iloc[0])
-        defender = Territory(self.obj.loc[random.choice(attacker.extended_neighbours)])
+        """
+        - Choose a random Empire ∑ (attacker reign)
+        - Choose a random Territory from ∑'s neighbours => defender
+        - defender's Empire Ω = Territory.sovereign
+        - intersection(Ω's territory neighbours, ∑) => attackers
+        - random(attackers) => Territory attacker (of ∑)
+        - attacker vs defender
+        - if attack > defense:
+            if len(Ω) > 1:
+                remove defender geometry from Ω geometry
+
+            else:
+                defender.empire defeated
+                remaining_territories => len(Empires with more than one Territory)
+
+            Do always:
+            expand ∑ geometry including the defender geometry
+            attacker.empire => defender.empire
+            recompute neighbours of empires
+         else:
+            defender, of Ω, resisted
+        """
+
+        # Choose ∑
+        empire = random.choice(self.__get_alive_empires())
+        empire_neighbours = self.obj.query(f'Empire == "{empire}"').iloc[0].empire_neighbours
+
+        # Choose the defender Territory among the empire's neighbours
+        defender = random.choice(empire_neighbours)
+        defender = Territory(self.obj.loc[defender])
+
+        # Find the attackers as the intersection between ∑'s all territories and Ω's neighbours
+        attacker_territories = self.obj.query(f'Empire == "{empire}"').index.values
+        attackers = list(set(attacker_territories) & set(defender.neighbours))
+
+        assert len(attackers) > 0, f"{defender} {attacker_territories}"
+
+        # Pick a random attacker Territory from Territories at the border
+        attacker = random.choice(attackers)
+        attacker = Territory(self.obj.loc[attacker])
 
         print(
-            f"{attacker.COMUNE}, of the {attacker.SOVRANO}'s reign, is attacking {defender.COMUNE} of the {defender.SOVRANO}'s reign... ⚔️")
+            f"{attacker.Territory}, of the {attacker.Empire}'s reign, is attacking {defender.Territory} of the {defender.Empire}'s reign... ⚔️")
 
         if attacker.attack() > defender.defend():
-            print(f"{attacker.COMUNE} conquered {defender.COMUNE} 🗡")
-            """The sovereign of the attacker must include the defender geometry, and the defender becomes owned by the
-            attacker's sovereign"""
+            print(f"{attacker.Territory} conquered {defender.Territory} 🗡")
 
-            self._extend_geometry(attacker, defender)
-
-            if len(self.obj[self.obj.SOVRANO == defender.SOVRANO]) is GeoDataFrame:
-                self._reduce_geometry(defender)
-                self.obj.loc[defender.COMUNE].SOVRANO = attacker.SOVRANO
+            if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
+                self.__reduce_empire_geometry(defender)
                 print()
 
             else:
-                self.remaing_territories -= 1
-                print(f"{defender.SOVRANO} has been defeated. ✝️")
+                self.remaing_territories = len(self.__get_alive_empires()) - 1
+                print(f"{defender.Empire} has been defeated. ✝️")
                 print(f"{self.remaing_territories} remaining territories.\n")
 
-            self.find_neighbors()
+            self.__expand_empire_geometry(attacker, defender)
+            self.obj.loc[defender.Territory].Empire = attacker.Empire  # Change the defender's Empire to the attacker one
+
+            self.update_empire_neighbours()
+
         else:
-            print(f"{defender.COMUNE} resisted to the attack of {attacker.COMUNE} 🛡\n")
+            print(f"{defender.Territory} resisted to the attack of {attacker.Territory} 🛡\n")
 
     @staticmethod
     def attack():

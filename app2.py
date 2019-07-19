@@ -13,17 +13,18 @@ logger = logging.getLogger("Reign")
 logger.setLevel("DEBUG")
 
 df = pd.read_pickle("bologna.pickle")
+df["empire_geometry"] = df.geometry
+df = df.rename(columns={"COMUNE": "Territory"})
+df["Empire"] = df.Territory
+df.set_index("Territory", drop=True, inplace=True)
 
 reign = Reign(df)
-reign.obj["extended_geometry"] = reign.obj.geometry
-reign.obj["SOVRANO"] = reign.obj.COMUNE
-reign.obj.set_index("COMUNE", drop=True, inplace=True)
 
-reign.find_neighbors()
+reign.update_empire_neighbours()
 
 while reign.remaing_territories > 1:
     reign.battle()
     # sleep(1)
 
-the_winner = df.groupby("SOVRANO").count().query("color > 1").iloc[0].name
+the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
 print(f"🏆🏆🏆 {the_winner} WON THE WAR!!! 🏆🏆🏆")
