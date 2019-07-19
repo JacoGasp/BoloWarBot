@@ -38,12 +38,33 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         # self.find_neighbors(pandas_obj)
 
-    def update_empire_neighbours(self):
-        neighbours = []
-        for i, territory in self.obj.iterrows():
-            n = self.obj[~self.obj.geometry.disjoint(territory.empire_geometry)].Empire.tolist()
-            neighbours.append([name for name in n if territory.Empire != name])
-        self.obj["empire_neighbours"] = neighbours
+    # def update_empire_neighbours(self):
+    #     neighbours = []
+    #     for i, territory in self.obj.iterrows():
+    #         n = self.obj[~self.obj.geometry.disjoint(territory.empire_geometry)].Empire.tolist()
+    #         neighbours.append([name for name in n if territory.Empire != name])
+    #     self.obj["empire_neighbours"] = neighbours
+
+    def __update_empire_neighbours(self, attacker, defender):
+        # def compute_neighbours(territory):
+        #     n = self.obj[~self.obj.empire_geometry.disjoint(territory.empire_geometry)].Territory.tolist()
+        #     return [name for name in n if territory.Empire != name]
+        # defender_empire_neighbours = compute_neighbours(defender)
+        # attacker_empire_neighbours = compute_neighbours(attacker)
+
+        # The new defender empire's neighbours are:
+        # the former neighbours minus the lost territory neighbours (defender.Territory)
+        #
+
+        defender_empire_neighbours = defender.name + [n for n in defender.empire_neighbours if n not in defender.neighbours] +
+                                        []
+
+
+        defender_empire_idx = self.obj.query(f'Empire == "{defender.Empire}"').index
+        attacker_empire_idx = self.obj.query(f'Empire == "{attacker.Empire}"').index
+
+        self.obj.loc[defender_empire_idx].empire_neighbours = [defender_empire_neighbours] * len(defender_empire_idx)
+        self.obj.loc[attacker_empire_idx].empire_neighbours = [attacker_empire_neighbours] * len(attacker_empire_idx)
 
     def __expand_empire_geometry(self, attacker, defender):
         old_geometry = self.obj.query(f'Empire == "{attacker.Empire}"').loc[attacker.Territory].empire_geometry
@@ -120,9 +141,10 @@ class Reign(object):
                 print(f"{self.remaing_territories} remaining territories.\n")
 
             self.__expand_empire_geometry(attacker, defender)
-            self.obj.loc[defender.Territory].Empire = attacker.Empire  # Change the defender's Empire to the attacker one
+            self.__update_empire_neighbours(attacker, defender)
 
-            self.update_empire_neighbours()
+            # Change the defender's Empire to the attacker one
+            self.obj.loc[defender.Territory].Empire = attacker.Empire
 
         else:
             print(f"{defender.Territory} resisted to the attack of {attacker.Territory} 🛡\n")
