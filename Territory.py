@@ -34,10 +34,11 @@ class Territory(pd.Series):
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj):
+    def __init__(self, pandas_obj, should_display_map=False):
         self.obj = pandas_obj
         self.remaing_territories = len(self.obj)
         self.alive_empires = list(pandas_obj.index.values)
+        self.should_display_map = should_display_map
         random.seed(1)
 
     def __update_empire_neighbours(self, empire):
@@ -137,7 +138,8 @@ class Reign(object):
             self.__update_empire_neighbours(old_defender_empire)
             self.__expand_empire_geometry(attacker, defender)
 
-            # self.print_map()
+            if self.should_display_map:
+                self.print_map()
         else:
             print(f"{defender.Territory} resisted to the attack of {attacker.Territory} 🛡\n")
 
