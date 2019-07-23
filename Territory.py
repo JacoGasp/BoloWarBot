@@ -93,7 +93,7 @@ class Reign(object):
         """
 
         # Choose ∑
-        empire = random.choice(self.__get_alive_empires())
+        empire = random.choice(self.obj.Empire.values.tolist())
         empire_neighbours = self.obj.query(f'Empire == "{empire}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
