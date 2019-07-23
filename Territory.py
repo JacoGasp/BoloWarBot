@@ -1,3 +1,5 @@
+from time import sleep
+
 import pandas as pd
 import random
 import logging
@@ -5,7 +7,7 @@ import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.collections import PatchCollection
 
-logging.basicConfig()
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("Reign")
 
 
@@ -91,6 +93,7 @@ class Reign(object):
          else:
             defender, of Ω, resisted
         """
+        message = ""
 
         # Choose ∑
         empire = random.choice(self.obj.Empire.values.tolist())
@@ -110,25 +113,27 @@ class Reign(object):
         attacker = random.choice(attackers)
         attacker = Territory(self.obj.loc[attacker])
 
-        print(
-            f"{attacker.Territory}, of the {attacker.Empire}'s reign, "
-            f"is attacking {defender.Territory} of the {defender.Empire}'s reign... ⚔️")
+        message = f"{attacker.Territory}, dell'impero di {attacker.Empire}, " \
+            f"sta per attaccare {defender.Territory} dell'impero di {defender.Empire}... ⚔️"
+        logger.info(message)
+
+        sleep(10)
 
         counts = self.obj.groupby("Empire").count().geometry
         attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
         defense = defender.defend() * counts[defender.Empire] / len(self.obj)
 
         if attack > defense:
-            print(f"{attacker.Territory} conquered {defender.Territory} 🗡")
+            message = f"{attacker.Territory} ha conquistato {defender.Territory} 🗡"
+            logger.info(message)
 
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
                 self.__reduce_empire_geometry(defender)
-                print()
 
             else:
                 self.remaing_territories = len(self.__get_alive_empires()) - 1
-                print(f"{defender.Empire} has been defeated. ✝️")
-                print(f"{self.remaing_territories} remaining territories.\n")
+                message = f"{defender.Empire} è stato sconfitto. ✝️\n{self.remaing_territories} territori rimanenti."
+                logger.info(message)
 
             # Change the defender's Empire to the attacker one
             old_defender_empire = defender.Empire
@@ -141,7 +146,8 @@ class Reign(object):
             if self.should_display_map:
                 self.print_map()
         else:
-            print(f"{defender.Territory} resisted to the attack of {attacker.Territory} 🛡\n")
+            message = f"{defender.Territory} ha resistito all'attacco di {attacker.Territory} 🛡\n"
+            logger.info(message)
 
     def print_map(self):
         _, ax = plt.subplots(figsize=(12, 12))
@@ -150,7 +156,8 @@ class Reign(object):
 
         for empire in empires_idx:
             color = self.obj.loc[empire].color
-            patches.append(PolygonPatch(self.obj.loc[empire].empire_geometry, alpha=0.75, fc=color, ec="#555555", ls=(0, (10, 5))))
+            patches.append(
+                PolygonPatch(self.obj.loc[empire].empire_geometry, alpha=0.75, fc=color, ec="#555555", ls=(0, (10, 5))))
 
         for i, territory in self.obj.iterrows():
             ax.annotate(s=i, xy=territory.geometry.centroid.coords[0], ha="center", fontsize=8)

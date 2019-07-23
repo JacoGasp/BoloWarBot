@@ -2,20 +2,31 @@ from time import sleep
 from Territory import *
 import argparse
 
-logger = logging.getLogger("Reign")
-logger.setLevel("DEBUG")
+from telegram_handler import TelegramHandler
+
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger()
 
 FLAGS = None
 
 
-def __main__():
-    df = pd.read_pickle("bologna.pickle")
+reign_logger = logging.getLogger("Reign")
+reign_logger.addHandler(TelegramHandler())
+reign_logger.setLevel("INFO")
 
+
+def __main__():
+    logger.info("Start BoloWartBot")
+
+    reign_logger.info("🔴⚔️Che la guerra abbia inizio!!⚔️🔵")
+
+    df = pd.read_pickle("bologna.pickle")
     reign = Reign(df, should_display_map=FLAGS.map)
 
     battle_round = 1
     while reign.remaing_territories > 1:
-        print("Round", battle_round)
+        logger.info(f"Round{battle_round}")
         reign.battle()
 
         battle_round += 1
@@ -23,7 +34,7 @@ def __main__():
             sleep(FLAGS.sleep)
 
     the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
-    print(f"🏆🏆🏆 {the_winner} WON THE WAR!!! 🏆🏆🏆")
+    reign_logger.info(f"🏆🏆🏆 {the_winner} WON THE WAR!!! 🏆🏆🏆")
 
 
 if __name__ == "__main__":
