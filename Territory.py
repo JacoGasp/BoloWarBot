@@ -1,13 +1,13 @@
 from time import sleep
 from telegram.ext import Dispatcher
 from telegram import InputFile
-import yaml
 import pandas as pd
 import random
 import logging
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.collections import PatchCollection
+from app import messages
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("Reign")
@@ -44,13 +44,7 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
-        self.messages = self.__load_messages(language)
         # random.seed(1)
-
-    @staticmethod
-    def __load_messages(language):
-        with open("messages.yaml") as stream:
-            return yaml.load(stream, Loader=yaml.FullLoader)[language]
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -123,13 +117,13 @@ class Reign(object):
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
-            message = self.messages["battle_a"] % (attacker.Territory, defender.Territory)
+            message = messages["battle_a"] % (attacker.Territory, defender.Territory)
         elif attacker.Territory != attacker.Empire and defender.Territory == defender.Empire:
-            message = self.messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
+            message = messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
         elif attacker.Territory == attacker.Empire and defender.Territory != defender.Empire:
-            message = self.messages["battle_b"] % (attacker.Territory, defender.Territory, defender.Empire)
+            message = messages["battle_b"] % (attacker.Territory, defender.Territory, defender.Empire)
         else:
-            message = self.messages["battle"]
+            message = messages["battle"]
 
         logger.info(message)
 
@@ -142,7 +136,7 @@ class Reign(object):
 
         # The attacker won
         if attack > defense:
-            message = self.messages["attacker_won"] % (attacker.Territory, defender.Territory)
+            message = messages["attacker_won"] % (attacker.Territory, defender.Territory)
             # logger.info(message)
 
             # If the empire has more than one territory, reduce its geometry
@@ -153,8 +147,8 @@ class Reign(object):
             else:
                 self.remaing_territories = len(self.__get_alive_empires()) - 1
 
-                message += self.messages["defender_defeated"] % defender.Empire
-                message += '\n' + self.messages["remaining_territories"] % self.remaing_territories
+                message += '\n' + messages["defender_defeated"] % defender.Empire
+                message += '\n' + messages["remaining_territories"] % self.remaing_territories
                 # logger.info(message)
 
             # Change the defender's Empire to the attacker one
@@ -173,7 +167,7 @@ class Reign(object):
                                                             caption=message)
         # The defender won
         else:
-            message = self.messages["defender_won"] % (defender.Territory, attacker.Territory)
+            message = messages["defender_won"] % (defender.Territory, attacker.Territory)
             logger.info(message)
 
     @staticmethod
