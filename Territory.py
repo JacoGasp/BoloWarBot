@@ -6,11 +6,12 @@ import random
 import logging
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
+from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from app import messages
+from utils.utils import load_messages
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("Reign")
+messages = load_messages("it")
 
 
 class Territory(pd.Series):
@@ -44,7 +45,7 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
-        # random.seed(1)
+        random.seed(1)
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -152,16 +153,17 @@ class Reign(object):
                 # logger.info(message)
 
             # Change the defender's Empire to the attacker one
-            old_defender_empire = defender.Empire
+            old_defender = defender
+            old_attacker = attacker
             self.obj.loc[defender.Territory, "Empire"] = attacker.Empire
 
             # Update geometries and neighbours
             self.__update_empire_neighbours(attacker.Empire)
-            self.__update_empire_neighbours(old_defender_empire)
+            self.__update_empire_neighbours(old_defender.Empire)
             self.__expand_empire_geometry(attacker, defender)
 
             if self.should_display_map:
-                self.print_map()
+                self.draw_map(old_attacker, defender)
                 with open("img.png", "rb") as img:
                     self.telegram_dispatcher.bot.send_photo(chat_id="@BoloWarBot", photo=InputFile(img),
                                                             caption=message)
@@ -179,21 +181,33 @@ class Reign(object):
         else:
             return words[0] + "\n" + " ".join(words[1:])
 
-    def print_map(self):
+    def draw_map(self, attacker: Territory, defender: Territory):
+
         _, ax = plt.subplots(figsize=(12, 12))
         patches = []
-        empires = self.obj.Empire.unique()
+        empires = [e for e in self.obj.Empire.unique() if e != attacker.Empire and e != defender.Territory]
 
         for i, empire in self.obj.loc[empires].iterrows():
-            color = empire.color
+            color = empire.empire_color
             patches.append(
                 PolygonPatch(empire.empire_geometry, alpha=0.75, fc=color, ec="#555555"))
             ax.annotate(s=self.__better_name(i),
                         xy=empire.empire_geometry.centroid.coords[0],
-                        ha="center",
-                        fontsize=12)
+                        ha="center", fontsize=12)
+
+        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, ls=2, ec="#E1025B"))
+        patches.append(PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, ls=2, ec="#E1025B"))
 
         ax.add_collection(PatchCollection(patches, match_original=True))
+
+        ax.add_patch(Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=2, ec="#15F505", hatch="/"))
+        ax.annotate(s=self.__better_name(attacker.Empire),
+                    xy=attacker.empire_geometry.centroid.coords[0],
+                    ha="center", fontsize=12)
+        ax.annotate(s=self.__better_name(defender.Territory),
+                    xy=defender.geometry.centroid.coords[0],
+                    ha="center", fontsize=12)
+
         ax.set_aspect(1)
         ax.axis('off')
         ax.grid(False)

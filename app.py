@@ -6,11 +6,13 @@ from utils.utils import load_messages
 from telegram_handler import TelegramHandler
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 reign_logger = logging.getLogger("Reign")
 reign_logger.addHandler(TelegramHandler())
 reign_logger.setLevel("INFO")
+
+app_logger = logging.getLogger("App")
+app_logger.setLevel("INFO")
 
 FLAGS = None
 
@@ -18,7 +20,7 @@ messages = load_messages("it")
 
 
 def __main__():
-    logger.info("Start BoloWartBot")
+    app_logger.info("Start BoloWartBot")
 
     updater = Updater(token=os.environ["API_TOKEN"])
     dispatcher = updater.dispatcher
@@ -31,7 +33,7 @@ def __main__():
     battle_round = 1
 
     while reign.remaing_territories > 1:
-        logger.info(f"Round {battle_round}")
+        app_logger.info(f"Round {battle_round}")
         reign.battle()
 
         battle_round += 1
