@@ -1,6 +1,7 @@
-from time import sleep
+import os
 from Territory import *
 import argparse
+from telegram.ext import Updater
 
 from telegram_handler import TelegramHandler
 
@@ -18,15 +19,17 @@ reign_logger.setLevel("INFO")
 
 def __main__():
     logger.info("Start BoloWartBot")
+    updater = Updater(token=os.environ["API_TOKEN"])
+    dispatcher = updater.dispatcher
 
     reign_logger.info("🔴⚔️Che la guerra abbia inizio!!⚔️🔵")
 
     df = pd.read_pickle("bologna.pickle")
-    reign = Reign(df, should_display_map=FLAGS.map)
+    reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
 
     battle_round = 1
     while reign.remaing_territories > 1:
-        logger.info(f"Round{battle_round}")
+        logger.info(f"Round {battle_round}")
         reign.battle()
 
         battle_round += 1

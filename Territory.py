@@ -1,5 +1,6 @@
 from time import sleep
-
+from telegram.ext import Dispatcher
+from telegram import InputFile
 import pandas as pd
 import random
 import logging
@@ -36,12 +37,13 @@ class Territory(pd.Series):
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False):
+    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None):
         self.obj = pandas_obj
         self.remaing_territories = len(self.obj)
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
-        random.seed(1)
+        self.telegram_dispatcher = telegram_dispatcher
+        # random.seed(1)
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -93,7 +95,6 @@ class Reign(object):
          else:
             defender, of Ω, resisted
         """
-        message = ""
 
         # Choose ∑
         empire = random.choice(self.obj.Empire.values.tolist())
@@ -119,48 +120,67 @@ class Reign(object):
 
         sleep(10)
 
+        # Compute the strength of the attacker and defender
         counts = self.obj.groupby("Empire").count().geometry
         attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
         defense = defender.defend() * counts[defender.Empire] / len(self.obj)
 
+        # The attacker won
         if attack > defense:
             message = f"{attacker.Territory} ha conquistato {defender.Territory} 🗡"
-            logger.info(message)
+            # logger.info(message)
 
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
                 self.__reduce_empire_geometry(defender)
 
             else:
                 self.remaing_territories = len(self.__get_alive_empires()) - 1
-                message = f"{defender.Empire} è stato sconfitto. ✝️\n{self.remaing_territories} territori rimanenti."
-                logger.info(message)
+
+                message += f"\L'impero di n{defender.Empire} è stato sconfitto ✝️" \
+                    f"\n{self.remaing_territories} territori rimanenti."
+                # logger.info(message)
 
             # Change the defender's Empire to the attacker one
             old_defender_empire = defender.Empire
             self.obj.loc[defender.Territory, "Empire"] = attacker.Empire
 
+            # Update geometries and neighbours
             self.__update_empire_neighbours(attacker.Empire)
             self.__update_empire_neighbours(old_defender_empire)
             self.__expand_empire_geometry(attacker, defender)
 
             if self.should_display_map:
                 self.print_map()
+                with open("img.png", "rb") as img:
+                    self.telegram_dispatcher.bot.send_photo(chat_id="@BoloWarBot", photo=InputFile(img),
+                                                            caption=message)
+        # The defender won
         else:
             message = f"{defender.Territory} ha resistito all'attacco di {attacker.Territory} 🛡\n"
             logger.info(message)
 
+    @staticmethod
+    def __better_name(name):
+        words = name.split()
+        words = ["S." if x == "San" else x for x in words]
+        if len(words) >= 4:
+            return " ".join(words[:2]) + "\n" + " ".join(words[2:])
+        else:
+            return words[0] + "\n" + " ".join(words[1:])
+
     def print_map(self):
         _, ax = plt.subplots(figsize=(12, 12))
         patches = []
-        empires_idx = self.obj.Empire.index
+        empires = self.obj.Empire.unique()
 
-        for empire in empires_idx:
-            color = self.obj.loc[empire].color
+        for i, empire in self.obj.loc[empires].iterrows():
+            color = empire.color
             patches.append(
-                PolygonPatch(self.obj.loc[empire].empire_geometry, alpha=0.75, fc=color, ec="#555555", ls=(0, (10, 5))))
-
-        for i, territory in self.obj.iterrows():
-            ax.annotate(s=i, xy=territory.geometry.centroid.coords[0], ha="center", fontsize=8)
+                PolygonPatch(empire.empire_geometry, alpha=0.75, fc=color, ec="#555555"))
+            ax.annotate(s=self.__better_name(i),
+                        xy=empire.empire_geometry.centroid.coords[0],
+                        ha="center",
+                        fontsize=12)
 
         ax.add_collection(PatchCollection(patches, match_original=True))
         ax.set_aspect(1)
@@ -168,6 +188,6 @@ class Reign(object):
         ax.grid(False)
         plt.axis('equal')
         plt.tight_layout()
-        #     img = ax.get_figure()
-        #     img.savefig("battle/{:03d}.png".format(i))
-        plt.show()
+        img = ax.get_figure()
+        img.savefig("img.png")
+        # plt.show()
