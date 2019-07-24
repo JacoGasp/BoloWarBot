@@ -45,7 +45,7 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
-        random.seed(1)
+        random.seed(12)
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -187,6 +187,7 @@ class Reign(object):
         patches = []
         empires = [e for e in self.obj.Empire.unique() if e != attacker.Empire and e != defender.Territory]
 
+        # Add all empire patches but both attacker and defender territories
         for i, empire in self.obj.loc[empires].iterrows():
             color = empire.empire_color
             patches.append(
@@ -195,18 +196,19 @@ class Reign(object):
                         xy=empire.empire_geometry.centroid.coords[0],
                         ha="center", fontsize=12)
 
-        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=2, ec="#E1025B"))
-        patches.append(PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, lw=2, ec="#E1025B"))
-
-        ax.add_collection(PatchCollection(patches, match_original=True))
-
-        ax.add_patch(Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=2, ec="#15F505", hatch="/"))
+        # Give to the defender the attacker color and add oblique lines on top the defender area
+        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=4, ec="#15F505", zorder=10))
+        ax.add_patch(Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=4, ec="#E1025B", hatch="//", zorder=2))
+        # Set the attacker and defender titles
         ax.annotate(s=self.__better_name(attacker.Empire),
-                    xy=attacker.empire_geometry.centroid.coords[0],
+                    xy=attacker.geometry.centroid.coords[0],
                     ha="center", fontsize=12)
         ax.annotate(s=self.__better_name(defender.Territory),
                     xy=defender.geometry.centroid.coords[0],
                     ha="center", fontsize=12)
+
+        # Add all patches
+        ax.add_collection(PatchCollection(patches, match_original=True))
 
         ax.set_aspect(1)
         ax.axis('off')
@@ -214,5 +216,7 @@ class Reign(object):
         plt.axis('equal')
         plt.tight_layout()
         img = ax.get_figure()
+
+        # Save the fig to send later
         img.savefig("img.png")
         # plt.show()
