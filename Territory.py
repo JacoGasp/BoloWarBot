@@ -195,8 +195,8 @@ class Reign(object):
                         xy=empire.empire_geometry.centroid.coords[0],
                         ha="center", fontsize=12)
 
-        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, ls=2, ec="#E1025B"))
-        patches.append(PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, ls=2, ec="#E1025B"))
+        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=2, ec="#E1025B"))
+        patches.append(PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, lw=2, ec="#E1025B"))
 
         ax.add_collection(PatchCollection(patches, match_original=True))
 
