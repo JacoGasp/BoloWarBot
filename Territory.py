@@ -1,6 +1,7 @@
 from time import sleep
 from telegram.ext import Dispatcher
 from telegram import InputFile
+import yaml
 import pandas as pd
 import random
 import logging
@@ -37,13 +38,19 @@ class Territory(pd.Series):
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None):
+    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None, language="it"):
         self.obj = pandas_obj
         self.remaing_territories = len(self.obj)
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
+        self.messages = self.__load_messages(language)
         # random.seed(1)
+
+    @staticmethod
+    def __load_messages(language):
+        with open("messages.yaml") as stream:
+            return yaml.load(stream, Loader=yaml.FullLoader)[language]
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -114,8 +121,16 @@ class Reign(object):
         attacker = random.choice(attackers)
         attacker = Territory(self.obj.loc[attacker])
 
-        message = f"{attacker.Territory}, dell'impero di {attacker.Empire}, " \
-            f"sta per attaccare {defender.Territory} dell'impero di {defender.Empire}... ⚔️"
+        # Send message
+        if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
+            message = self.messages["battle_a"] % (attacker.Territory, defender.Territory)
+        elif attacker.Territory != attacker.Empire and defender.Territory == defender.Empire:
+            message = self.messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
+        elif attacker.Territory == attacker.Empire and defender.Territory != defender.Empire:
+            message = self.messages["battle_b"] % (attacker.Territory, defender.Territory, defender.Empire)
+        else:
+            message = self.messages["battle"]
+
         logger.info(message)
 
         sleep(10)
@@ -127,17 +142,19 @@ class Reign(object):
 
         # The attacker won
         if attack > defense:
-            message = f"{attacker.Territory} ha conquistato {defender.Territory} 🗡"
+            message = self.messages["attacker_won"] % (attacker.Territory, defender.Territory)
             # logger.info(message)
 
+            # If the empire has more than one territory, reduce its geometry
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
                 self.__reduce_empire_geometry(defender)
 
+            # If the empire has only one territory, the empire has been defeated
             else:
                 self.remaing_territories = len(self.__get_alive_empires()) - 1
 
-                message += f"\L'impero di n{defender.Empire} è stato sconfitto ✝️" \
-                    f"\n{self.remaing_territories} territori rimanenti."
+                message += self.messages["defender_defeated"] % defender.Empire
+                message += '\n' + self.messages["remaining_territories"] % self.remaing_territories
                 # logger.info(message)
 
             # Change the defender's Empire to the attacker one
@@ -156,7 +173,7 @@ class Reign(object):
                                                             caption=message)
         # The defender won
         else:
-            message = f"{defender.Territory} ha resistito all'attacco di {attacker.Territory} 🛡\n"
+            message = self.messages["defender_won"] % (defender.Territory, attacker.Territory)
             logger.info(message)
 
     @staticmethod
