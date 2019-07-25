@@ -77,7 +77,7 @@ def get_last_poll_results(poll_id):
     results = {}
     total_votes = 0
     for option in poll["options"]:
-        results[option["text"]] += option["voter_count"]
+        results[option["text"]] = option["voter_count"]
         total_votes += option["voter_count"]
 
     logger.debug("%d people voted the poll with poll_id: %s" % (total_votes, poll_id))
@@ -91,7 +91,7 @@ def stop_poll(message_id):
     if not r["ok"]:
         logger.error("Cannot stop poll with message id %s", message_id)
         raise RuntimeError("%s: Cannot stop poll with message_id %s" % (__name__, message_id))
-    logger.debug("Successfully closed poll with message_id %s" %message_id)
+    logger.debug("Successfully closed poll with message_id %s" % message_id)
 
 
 def load_messages(language):
