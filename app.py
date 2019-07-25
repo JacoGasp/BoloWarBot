@@ -4,7 +4,7 @@ import argparse
 from telegram.ext import Updater
 from utils.utils import load_messages
 from telegram_handler import TelegramHandler
-
+import schedule
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 reign_logger = logging.getLogger("Reign")
@@ -17,6 +17,16 @@ app_logger.setLevel("INFO")
 FLAGS = None
 
 messages = load_messages("it")
+play = True
+battle_round = 1
+
+
+def play_turn(reign):
+    global battle_round
+    app_logger.info(f"Round {battle_round}")
+    reign.battle()
+
+    battle_round += 1
 
 
 def __main__():
@@ -30,15 +40,11 @@ def __main__():
     df = pd.read_pickle("bologna.pickle")
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
 
-    battle_round = 1
+    schedule.every(5).minutes.do(play_turn, reign)
 
-    while reign.remaing_territories > 1:
-        app_logger.info(f"Round {battle_round}")
-        reign.battle()
-
-        battle_round += 1
-        if "sleep" in FLAGS:
-            sleep(FLAGS.sleep)
+    while reign.remaing_territories > 1 and play:
+        schedule.run_pending()
+        sleep(1)
 
     the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
     reign_logger.info(messages["the_winner_is"] % the_winner)

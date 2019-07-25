@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from utils.utils import load_messages
+from utils.utils import messages
+from utils import utils
 
 logger = logging.getLogger("Reign")
-messages = load_messages("it")
 
 
 class Territory(pd.Series):
@@ -130,10 +130,25 @@ class Reign(object):
 
         sleep(10)
 
+        # Send poll
+        message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
+
+        # Wait for the votaion
+        sleep(120)
+
+        # Close the poll and read the results
+        utils.stop_poll(message_id)
+        poll_results = utils.get_last_poll_results(poll_id)
+        total_votes = sum(poll_results.values())
+
         # Compute the strength of the attacker and defender
-        counts = self.obj.groupby("Empire").count().geometry
-        attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
-        defense = defender.defend() * counts[defender.Empire] / len(self.obj)
+        if total_votes > 0:
+            attack = attacker.attack() * poll_results[attacker.Territory] / total_votes
+            defense = defender.defend() * poll_results[defender.Territory] / total_votes
+        else:
+            counts = self.obj.groupby("Empire").count().geometry
+            attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
+            defense = defender.defend() * counts[defender.Empire] / len(self.obj)
 
         # The attacker won
         if attack > defense:
