@@ -1,3 +1,4 @@
+language: "it"
 db:
   path: "config/bologna.pickle"
 poll:

@@ -105,6 +105,5 @@ def load_configs():
         return yaml.load(stream, Loader=yaml.FullLoader)
 
 
-messages = load_messages("it")
 config = load_configs()
-
+messages = load_messages(config["language"])
