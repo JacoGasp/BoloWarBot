@@ -3,11 +3,15 @@ import os
 import requests
 import json
 import logging
-
+import logging.config
 token = os.environ["API_TOKEN"]
 chat_id = os.environ["CHAT_ID"]
 
-logger = logging.getLogger(__name__)
+with open("config/logging.yaml", "rt") as f:
+    logging_config = yaml.safe_load(f)
+    logging.config.dictConfig(logging_config)
+
+logger = logging.getLogger("Utils")
 
 
 def telegram_api(command, **kwargs):
@@ -25,18 +29,25 @@ def send_poll(attacker_name, defender_name):
     )
     r = telegram_api("sendPoll", **poll)
     if not r["ok"]:
-        logging.error("Cannot open poll")
+        logger.error("Cannot open poll")
+        raise RuntimeError("%s: Cannot open poll" % __name__)
 
     message_id = r["result"]["message_id"]
     poll_id = r["result"]["poll"]["id"]
+
+    logger.debug("Poll successfully opened. message_id: %s, poll_id: %s", message_id, poll_id)
     return message_id, poll_id
 
 
 def get_poll(poll_id):
-    response = telegram_api("getUpdates", **dict(chat_id=chat_id))
-    results = response["result"]
+    r = telegram_api("getUpdates", **dict(chat_id=chat_id))
+    if not r["ok"]:
+        logger.error("Cannot get poll with poll_id %s", poll_id)
+        raise RuntimeError("%s Cannot get poll with poll_id %s" % (__name__, poll_id))
+
+    logger.debug("Successfully got poll with poll_id %s" % poll_id)
+    results = r["result"]
     poll = filter(lambda x: "poll" in x, results)
-    # poll = [x["poll"] for x in poll]
     poll = filter(lambda x: x["poll"]["id"] == poll_id, poll)
     return list(poll)
 
@@ -53,15 +64,23 @@ def get_last_poll(poll_id):
 
 def get_last_poll_results(poll_id):
     poll = get_last_poll(poll_id)
-    # if not poll["is_closed"]:
-    #     raise RuntimeError("This poll is not closed")
 
+    # The poll is empty
+    if poll is None:
+        logger.debug("The poll is empty")
+        return None
+
+    if not poll["is_closed"]:
+        raise RuntimeError("%s: This poll is not closed" % __name__)
+
+    # Count the results
     results = {}
+    total_votes = 0
     for option in poll["options"]:
-        if option["text"] in results:
-            results[option["text"]] += option["voter_count"]
-        else:
-            results[option["text"]] = option["voter_count"]
+        results[option["text"]] += option["voter_count"]
+        total_votes += option["voter_count"]
+
+    logger.debug("%d people voted the poll with poll_id: %s" % (total_votes, poll_id))
     return results
 
 
@@ -70,7 +89,9 @@ def stop_poll(message_id):
     args = dict(chat_id=chat_id, message_id=message_id)
     r = telegram_api("stopPoll", **args)
     if not r["ok"]:
-        logger.error("Cannot stop poll with message id %s" % message_id)
+        logger.error("Cannot stop poll with message id %s", message_id)
+        raise RuntimeError("%s: Cannot stop poll with message_id %s" % (__name__, message_id))
+    logger.debug("Successfully closed poll with message_id %s" %message_id)
 
 
 def load_messages(language):
@@ -78,17 +99,12 @@ def load_messages(language):
         return yaml.load(stream, Loader=yaml.FullLoader)[language]
 
 
-def load_config():
+def load_configs():
     with open("config/config.yaml") as stream:
+        logger.debug("Configurations successfully loaded")
         return yaml.load(stream, Loader=yaml.FullLoader)
 
 
 messages = load_messages("it")
-config = load_config()
+config = load_configs()
 
-# message_id, poll_id = send_poll("Bologna", "Modena")
-# print(message_id, poll_id)
-# # stop_poll(message_id)
-# print(get_last_poll_results("1435"))
-# print(get_last_poll_results("5892961168976248845"))
-# print(get_last_poll("5892961168976248845"))

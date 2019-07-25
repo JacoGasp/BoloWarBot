@@ -118,7 +118,11 @@ class Reign(object):
         utils.stop_poll(message_id)
 
         poll_results = utils.get_last_poll_results(poll_id)
-        total_votes = sum(poll_results.values())
+
+        if poll_results:
+            total_votes = sum(poll_results.values())
+        else:
+            total_votes = 0
 
         # Compute the strength of the attacker and defender
         if total_votes > 0:
