@@ -1,13 +1,14 @@
-import os, sys
 from reign import Reign
 import argparse
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater
 from utils import utils
 from utils.telegram_handler import TelegramHandler
 import schedule
 import logging
 import pandas as pd
 from time import sleep
+import traceback
+import os
 
 messages, config, token = utils.messages, utils.config, utils.token
 
@@ -16,61 +17,55 @@ app_logger = logging.getLogger("App")
 reign_logger.addHandler(TelegramHandler())
 
 dispatcher = None
+bot = None
 FLAGS = None
 PLAY = True
 battle_round = 1
-
-
-def echo(bot, update):
-    bot.send_message(chat_id=update.message.chat_id, text=update.message.text)
-
-
-def hello(bot, update):
-    print(update.message.chat_id)
-    bot.send_message(chat_id=update.message.chat_id, text="Ciao")
-
-
-def send_error_to_telegram_user(chat_id, text):
-    dispatcher.bot.send_message(chat_id=chat_id, text=text)
+reign = None
 
 
 def save_temp():
     pass
 
 
-def play_turn(reign):
+def play_turn():
     global battle_round, PLAY
     app_logger.info(f"Round {battle_round}")
     try:
         reign.battle()
         battle_round += 1
-    except Exception as e:
-        exc_type, _, _ = sys.exc_info()
-
-        text = "Something went wrong with error: %s at line %d of file %s" % (e, line, fname)
-        app_logger.error(text)
-        send_error_to_telegram_user(chat_id=config["telegram"]["chat_id_logging"], text=text)
+    except Exception:
+        error_message = traceback.format_exc()
+        app_logger.error(error_message)
+        bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
 
     if reign.remaing_territories == 1:
         PLAY = False
 
 
 def __main__():
-    app_logger.info("Start BoloWartBot")
 
     # Start the Telegram updater
     updater = Updater(token=token)
     global dispatcher
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(CommandHandler("start", hello))
-    updater.start_polling()
+    global bot
+    bot = dispatcher.bot
 
-    # Load the data
-    df = pd.read_pickle(config["db"]["path"])
+    # Load the data. Try to restore previously partial dataframe.
+    stored_df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    if os.path.exists(stored_df_path):
+        df = pd.read_pickle(stored_df_path)
+        app_logger.debug("Dataframe restored from disk.")
+    else:
+        df = pd.read_pickle(config["db"]["path"])
+    global reign
+
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
+    app_logger.debug("Alive empires: %d" % reign.remaing_territories)
 
     # Schedule the turns
-    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(play_turn, reign)
+    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(play_turn)
 
     # Start the battle
     reign_logger.info(messages["start"])
@@ -85,8 +80,28 @@ def __main__():
 
 
 if __name__ == "__main__":
+
+    app_logger.info("Start BoloWartBot")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--map", "-m", action="store_true", help="If present, display the map")
     parser.add_argument("--sleep", "-s", type=int, default=0, help="Time in seconds to wait between each round")
     FLAGS = parser.parse_args()
-    __main__()
+
+    try:
+        __main__()
+    except KeyboardInterrupt:
+        app_logger.info("Closing the BoloWarBot")
+    finally:
+        if PLAY:
+            PLAY = False
+
+            # Save the partial battle state
+            if reign.obj is not None:
+                if not os.path.exists(config["saving"]["dir"]):
+                    os.makedirs(config["saving"]["dir"])
+            output_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+            pd.to_pickle(reign.obj, output_path)
+            app_logger.debug('Dataframe saved to "%s"' % output_path)
+
+        app_logger.info("Bye bye.")
