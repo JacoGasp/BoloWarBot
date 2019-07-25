@@ -4,11 +4,11 @@ db:
 poll:
   question_message: "A chi vuoi far vincere la battaglia?!"
 schedule:
-  minutes_per_round: 2
-  wait_for_poll: 1
+  minutes_per_round: 30
+  wait_for_poll: 10
 telegram:
   chat_id_logging: 178108366
 saving:
-  dir: temp
-  map_img: map.png
-  db: temp.pickle
+  dir: "temp"
+  map_img: "map.png"
+  db: "temp.pickle"
