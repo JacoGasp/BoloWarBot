@@ -1,20 +1,24 @@
 import os
-from Reign import *
+from reign import Reign
 import argparse
 from telegram.ext import Updater
-from utils.utils import messages, config
+from utils.utils import messages, config, token
 from utils.telegram_handler import TelegramHandler
 import schedule
+import logging
+import logging.config
+import yaml
+import pandas as pd
+from time import sleep
 
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+with open("config/logging.yaml", "rt") as f:
+    logging_config = yaml.safe_load(f)
+    logging.config.dictConfig(logging_config)
 
 reign_logger = logging.getLogger("Reign")
-reign_logger.addHandler(TelegramHandler())
-reign_logger.setLevel("INFO")
-
 app_logger = logging.getLogger("App")
-app_logger.setLevel("INFO")
+reign_logger.addHandler(TelegramHandler())
+
 
 FLAGS = None
 PLAY = True
@@ -34,7 +38,7 @@ def __main__():
     app_logger.info("Start BoloWartBot")
 
     # Start the Telegram updater
-    updater = Updater(token=os.environ["API_TOKEN"])
+    updater = Updater(token=token)
     dispatcher = updater.dispatcher
 
     # Load the data
@@ -42,7 +46,7 @@ def __main__():
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
 
     # Schedule the turns
-    schedule.every(config["schedule"]["minutes"]).minutes.do(play_turn, reign)
+    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(play_turn, reign)
 
     # Start the battle
     reign_logger.info(messages["start"])

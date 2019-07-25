@@ -1,4 +1,5 @@
 import pandas as pd
+import random
 
 
 class Territory(pd.Series):
