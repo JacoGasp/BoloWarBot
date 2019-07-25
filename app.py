@@ -42,7 +42,7 @@ def __main__():
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
 
     # Schedule the turns
-    schedule.every(5).minutes.do(play_turn, reign)
+    schedule.every(config["schedule"]["minutes"]).minutes.do(play_turn, reign)
 
     # Start the battle
     reign_logger.info(messages["start"])
