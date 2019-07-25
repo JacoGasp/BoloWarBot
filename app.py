@@ -3,7 +3,7 @@ from Territory import *
 import argparse
 from telegram.ext import Updater
 from utils.utils import messages, config
-from telegram_handler import TelegramHandler
+from utils.telegram_handler import TelegramHandler
 import schedule
 
 
