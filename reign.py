@@ -1,15 +1,17 @@
 from time import sleep
 from telegram.ext import Dispatcher
 from telegram import InputFile
-import territory
+from territory import Territory
 import random
 import logging
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-from utils.utils import messages
+from utils.utils import messages, config
 from utils import utils
+import pandas as pd
+
 
 logger = logging.getLogger("Reign")
 
@@ -111,8 +113,8 @@ class Reign(object):
         # Send poll
         message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
 
-        # Wait for the votaion
-        sleep(120)
+        # Wait for the votation
+        sleep(config["schedule"]["wait_for_poll"] * 60)
 
         # Close the poll and read the results
         utils.stop_poll(message_id)
