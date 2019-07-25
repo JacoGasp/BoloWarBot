@@ -19,7 +19,7 @@ logger = logging.getLogger("Reign")
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None, language="it"):
+    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None):
         self.obj = pandas_obj
         self.remaing_territories = len(self.obj)
         self.alive_empires = list(pandas_obj.index.values)
@@ -108,8 +108,6 @@ class Reign(object):
 
         logger.info(message)
 
-        sleep(10)
-
         # Send poll
         message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
 
@@ -118,6 +116,7 @@ class Reign(object):
 
         # Close the poll and read the results
         utils.stop_poll(message_id)
+
         poll_results = utils.get_last_poll_results(poll_id)
         total_votes = sum(poll_results.values())
 
