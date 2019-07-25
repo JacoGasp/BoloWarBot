@@ -10,7 +10,7 @@ handlers:
     stream: ext://sys.stdout
 loggers:
   App:
-    level: INFO
+    level: DEBUG
     handlers: [console]
     propagate: no
   Reign:
