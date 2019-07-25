@@ -2,9 +2,11 @@ import os
 from Territory import *
 import argparse
 from telegram.ext import Updater
-from utils.utils import load_messages
+from utils.utils import messages, config
 from telegram_handler import TelegramHandler
 import schedule
+
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 reign_logger = logging.getLogger("Reign")
@@ -16,7 +18,6 @@ app_logger.setLevel("INFO")
 
 FLAGS = None
 
-messages = load_messages("it")
 play = True
 battle_round = 1
 
@@ -37,7 +38,7 @@ def __main__():
 
     reign_logger.info(messages["start"])
 
-    df = pd.read_pickle("bologna.pickle")
+    df = pd.read_pickle(config["db"]["path"])
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
 
     schedule.every(5).minutes.do(play_turn, reign)
