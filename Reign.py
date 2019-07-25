@@ -1,7 +1,7 @@
 from time import sleep
 from telegram.ext import Dispatcher
 from telegram import InputFile
-import pandas as pd
+import territory
 import random
 import logging
 import matplotlib.pyplot as plt
@@ -12,28 +12,6 @@ from utils.utils import messages
 from utils import utils
 
 logger = logging.getLogger("Reign")
-
-
-class Territory(pd.Series):
-    @property
-    def _constructor(self):
-        return Territory
-
-    @property
-    def _constructor_expanddim(self):
-        return Territory
-
-    @property
-    def Territory(self):
-        return self.name
-
-    @staticmethod
-    def attack():
-        return random.random()
-
-    @staticmethod
-    def defend():
-        return random.random()
 
 
 @pd.api.extensions.register_dataframe_accessor('reign')

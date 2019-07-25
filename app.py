@@ -1,5 +1,5 @@
 import os
-from Territory import *
+from Reign import *
 import argparse
 from telegram.ext import Updater
 from utils.utils import messages, config
