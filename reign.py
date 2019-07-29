@@ -25,7 +25,7 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
-        random.seed(12)
+        # random.seed(12)
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
