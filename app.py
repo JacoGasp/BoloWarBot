@@ -25,7 +25,12 @@ reign = None
 
 
 def save_temp():
-    pass
+    if reign.obj is not None:
+        if not os.path.exists(config["saving"]["dir"]):
+            os.makedirs(config["saving"]["dir"])
+    output_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    pd.to_pickle(reign.obj, output_path)
+    app_logger.debug('Dataframe saved to "%s"' % output_path)
 
 
 def play_turn():
@@ -41,6 +46,9 @@ def play_turn():
 
     if reign.remaing_territories == 1:
         PLAY = False
+
+    # Save the partial battle state
+    save_temp()
 
 
 def __main__():
@@ -59,6 +67,7 @@ def __main__():
         app_logger.debug("Dataframe restored from disk.")
     else:
         df = pd.read_pickle(config["db"]["path"])
+        reign_logger.info(messages["start"])
     global reign
 
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
@@ -68,8 +77,6 @@ def __main__():
     schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(play_turn)
 
     # Start the battle
-    reign_logger.info(messages["start"])
-
     while PLAY:
         schedule.run_pending()
         sleep(1)
@@ -97,11 +104,6 @@ if __name__ == "__main__":
             PLAY = False
 
             # Save the partial battle state
-            if reign.obj is not None:
-                if not os.path.exists(config["saving"]["dir"]):
-                    os.makedirs(config["saving"]["dir"])
-            output_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
-            pd.to_pickle(reign.obj, output_path)
-            app_logger.debug('Dataframe saved to "%s"' % output_path)
+            save_temp()
 
         app_logger.info("Bye bye.")
