@@ -28,4 +28,4 @@ df["Empire"] = df.Territory
 df.set_index("Territory", drop=True, inplace=True)
 df.head()
 
-df.to_pickle("Bologna.pickle")
+df.to_pickle("bologna.pickle")
