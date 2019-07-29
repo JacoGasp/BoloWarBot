@@ -21,7 +21,7 @@ class Reign(object):
 
     def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None):
         self.obj = pandas_obj
-        self.remaing_territories = len(self.obj)
+        self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
@@ -111,7 +111,7 @@ class Reign(object):
         # Send poll
         message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
 
-        # Wait for the votation
+        # Wait for the vote
         sleep(config["schedule"]["wait_for_poll"] * 60)
 
         # Close the poll and read the results
