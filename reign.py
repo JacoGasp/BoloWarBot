@@ -13,9 +13,6 @@ from utils import utils
 import pandas as pd
 
 
-logger = logging.getLogger("Reign")
-
-
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
@@ -25,7 +22,7 @@ class Reign(object):
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
         self.telegram_dispatcher = telegram_dispatcher
-        # random.seed(12)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -106,7 +103,7 @@ class Reign(object):
         else:
             message = messages["battle"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
 
-        logger.info(message)
+        self.logger.info(message)
 
         # Send poll
         message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
@@ -136,7 +133,7 @@ class Reign(object):
         # The attacker won
         if attack > defense:
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory)
-            # logger.info(message)
+            # self.logger.info(message)
 
             # If the empire has more than one territory, reduce its geometry
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
@@ -148,7 +145,7 @@ class Reign(object):
 
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
-                # logger.info(message)
+                # self.logger.info(message)
 
             # Change the defender's Empire to the attacker one
             old_defender = defender
@@ -168,7 +165,7 @@ class Reign(object):
         # The defender won
         else:
             message = messages["defender_won"] % (defender.Territory, attacker.Territory)
-            logger.info(message)
+            self.logger.info(message)
 
     @staticmethod
     def __better_name(name):
