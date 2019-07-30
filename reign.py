@@ -102,7 +102,7 @@ class Reign(object):
         elif attacker.Territory != attacker.Empire and defender.Territory == defender.Empire:
             message = messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
         elif attacker.Territory == attacker.Empire and defender.Territory != defender.Empire:
-            message = messages["battle_c"] % (attacker.Territory, defender.Territory, defender.Empire)
+            message = messages["battle_c"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
         else:
             message = messages["battle"]
 
