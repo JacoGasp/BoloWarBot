@@ -6,7 +6,7 @@ it:
   attacker_won: "%s ha conquistato %s 🗡"
   defender_won: "%s ha resistito all'attacco di %s 🛡"
   defender_defeated: "L'impero di %s è stato sconfitto ✝️"
-  remaining_territories: "%d territori rimanenti."
+  remaining_territories: "%d imperi rimanenti."
   the_winner_is: "🏆🏆🏆 %s HA VINTO LA GUERRA!!! 🏆🏆🏆"
   start: "🔴⚔️Che la guerra abbia inizio!!⚔️🔵"
 
@@ -18,6 +18,6 @@ en:
   attacker_won: "%s conquered %s 🗡"
   defender_won: "%s resisted to the attack of %s 🛡"
   defender_defeated: "The empire %s has been defeated ✝️"
-  remaining_territories: "%d remaining territories."
+  remaining_territories: "%d remaining empires."
   the_winner_is: "🏆🏆🏆 %s WON THE WAR!!! 🏆🏆🏆"
   start: "🔴⚔️Let's the War begin!!⚔️🔵"
