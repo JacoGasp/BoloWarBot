@@ -9,6 +9,7 @@ it:
   remaining_territories: "%d imperi rimanenti."
   the_winner_is: "🏆🏆🏆 %s HA VINTO LA GUERRA!!! 🏆🏆🏆"
   start: "🔴⚔️Che la guerra abbia inizio!!⚔️🔵"
+  poll: "Con chi ti vuoi schierare?!"
 
 en:
   battle_a: "⚔️⚔️ %s is going to attack %s ⚔️⚔️"
@@ -21,3 +22,4 @@ en:
   remaining_territories: "%d remaining empires."
   the_winner_is: "🏆🏆🏆 %s WON THE WAR!!! 🏆🏆🏆"
   start: "🔴⚔️Let's the War begin!!⚔️🔵"
+  poll: "With whom do you want to allay?!"

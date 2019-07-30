@@ -23,7 +23,7 @@ def telegram_api(command, **kwargs):
 def send_poll(attacker_name, defender_name):
     poll = dict(
         chat_id=chat_id,
-        question=config["poll"]["question_message"],
+        question=messages["poll"],
         options=[attacker_name, defender_name],
         disable_notification=True,
     )
