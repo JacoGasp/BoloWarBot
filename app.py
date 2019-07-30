@@ -1,16 +1,19 @@
-import threading
-
-from reign import Reign
 import argparse
-from telegram.ext import Updater
-from utils import utils
-from utils.telegram_handler import TelegramHandler
-import schedule
-import logging
-import pandas as pd
-from time import sleep
-import traceback
+import threading
+import signal
 import os
+import traceback
+import logging
+
+import schedule
+from time import sleep
+
+import pandas as pd
+from reign import Reign
+from utils import utils
+from utils.functions import get_sig_dict
+from utils.telegram_handler import TelegramHandler
+from telegram.ext import Updater
 
 messages, config, token = utils.messages, utils.config, utils.token
 
@@ -18,12 +21,27 @@ reign_logger = logging.getLogger("Reign")
 app_logger = logging.getLogger("App")
 reign_logger.addHandler(TelegramHandler())
 
+# ---------------------------------------- #
+# Global Variables
+
+sig_dict = {}
 dispatcher = None
 bot = None
 FLAGS = None
 PLAY = True
 battle_round = 1
 reign = None
+
+
+# ---------------------------------------- #
+
+def exit_app(signum, _):
+    app_logger.debug("Terminating with signal %s", sig_dict[signum])
+    global PLAY
+    PLAY = False
+    app_logger.info("Closing the BoloWarBot")
+    save_temp()
+    app_logger.info("Bye bye.")
 
 
 def save_temp():
@@ -60,14 +78,18 @@ def run_threaded(job_func):
 
 def __main__():
 
+    # ---------------------------------------- #
     # Start the Telegram updater
+
     updater = Updater(token=token)
     global dispatcher
     dispatcher = updater.dispatcher
     global bot
     bot = dispatcher.bot
 
+    # ---------------------------------------- #
     # Load the data. Try to restore previously partial dataframe.
+
     stored_df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
     if os.path.exists(stored_df_path):
         df = pd.read_pickle(stored_df_path)
@@ -80,37 +102,44 @@ def __main__():
     reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
     app_logger.debug("Alive empires: %d" % reign.remaing_territories)
 
+    # ---------------------------------------- #
     # Schedule the turns
+
     schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(run_threaded, play_turn)
 
+    # ---------------------------------------- #
     # Start the battle
+
     while PLAY:
         schedule.run_pending()
         sleep(1)
 
+    # ---------------------------------------- #
     # End of the war
-    the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
-    reign_logger.info(messages["the_winner_is"] % the_winner)
+    if reign.remaing_territories == 1:
+        the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
+        reign_logger.info(messages["the_winner_is"] % the_winner)
 
 
 if __name__ == "__main__":
 
     app_logger.info("Start BoloWartBot")
 
+    # ---------------------------------------- #
+    # Parse arguments
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--map", "-m", action="store_true", help="If present, display the map")
-    parser.add_argument("--sleep", "-s", type=int, default=0, help="Time in seconds to wait between each round")
     FLAGS = parser.parse_args()
 
-    try:
-        __main__()
-    except KeyboardInterrupt:
-        app_logger.info("Closing the BoloWarBot")
-    finally:
-        if PLAY:
-            PLAY = False
+    # ---------------------------------------- #
+    # Register exit handler
 
-            # Save the partial battle state
-            save_temp()
+    sig_dict = get_sig_dict()
+    signal.signal(signal.SIGINT, exit_app)
+    signal.signal(signal.SIGTERM, exit_app)
 
-        app_logger.info("Bye bye.")
+    # ---------------------------------------- #
+    # App
+
+    __main__()
