@@ -4,8 +4,8 @@ db:
 poll:
   question_message: "A chi vuoi far vincere la battaglia?!"
 schedule:
-  minutes_per_round: 1
-  wait_for_poll: 14
+  minutes_per_round: 10
+  wait_for_poll: 9
 telegram:
   chat_id_logging: 178108366
 saving:

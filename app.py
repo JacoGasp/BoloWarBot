@@ -1,3 +1,5 @@
+import threading
+
 from reign import Reign
 import argparse
 from telegram.ext import Updater
@@ -51,6 +53,11 @@ def play_turn():
     save_temp()
 
 
+def run_threaded(job_func):
+    job_thread = threading.Thread(target=job_func)
+    job_thread.start()
+
+
 def __main__():
 
     # Start the Telegram updater
@@ -74,7 +81,7 @@ def __main__():
     app_logger.debug("Alive empires: %d" % reign.remaing_territories)
 
     # Schedule the turns
-    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(play_turn)
+    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(run_threaded, play_turn)
 
     # Start the battle
     while PLAY:
