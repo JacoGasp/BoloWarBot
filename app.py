@@ -13,20 +13,18 @@ from reign import Reign
 from utils import utils
 from utils.functions import get_sig_dict
 from utils.telegram_handler import TelegramHandler
-from telegram.ext import Updater
 
-messages, config, token = utils.messages, utils.config, utils.token
+messages, config, token, chat_id = utils.messages, utils.config, utils.token, utils.chat_id
 
 reign_logger = logging.getLogger("Reign")
 app_logger = logging.getLogger("App")
-reign_logger.addHandler(TelegramHandler())
 
 # ---------------------------------------- #
 # Global Variables
 
 sig_dict = {}
-dispatcher = None
-bot = None
+telegram_handler = None
+
 FLAGS = None
 PLAY = True
 battle_round = 1
@@ -41,7 +39,8 @@ def exit_app(signum, _):
     PLAY = False
     app_logger.info("Closing the BoloWarBot")
     save_temp()
-    app_logger.info("Bye bye.")
+    for job in schedule.jobs:
+        schedule.cancel_job(job)
 
 
 def save_temp():
@@ -62,7 +61,7 @@ def play_turn():
     except Exception:
         error_message = traceback.format_exc()
         app_logger.error(error_message)
-        bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
+        telegram_handler.bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
 
     if reign.remaing_territories == 1:
         PLAY = False
@@ -79,15 +78,6 @@ def run_threaded(job_func):
 def __main__():
 
     # ---------------------------------------- #
-    # Start the Telegram updater
-
-    updater = Updater(token=token)
-    global dispatcher
-    dispatcher = updater.dispatcher
-    global bot
-    bot = dispatcher.bot
-
-    # ---------------------------------------- #
     # Load the data. Try to restore previously partial dataframe.
 
     stored_df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
@@ -97,15 +87,23 @@ def __main__():
     else:
         df = pd.read_pickle(config["db"]["path"])
         reign_logger.info(messages["start"])
+        # telegram_handler.bot.send_message()
     global reign
 
-    reign = Reign(df, should_display_map=FLAGS.map, telegram_dispatcher=dispatcher)
+    # ---------------------------------------- #
+
+    # Init data handlers
+    global telegram_handler
+    reign = Reign(df, should_display_map=FLAGS.map)
+    telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
+    reign.telegram_handler = telegram_handler
+
     app_logger.debug("Alive empires: %d" % reign.remaing_territories)
 
     # ---------------------------------------- #
     # Schedule the turns
 
-    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(run_threaded, play_turn)
+    schedule.every(config["schedule"]["minutes_per_round"]).seconds.do(run_threaded, play_turn)
 
     # ---------------------------------------- #
     # Start the battle
@@ -118,13 +116,14 @@ def __main__():
     # End of the war
     if reign.remaing_territories == 1:
         the_winner = df.groupby("Empire").count().query("color > 1").iloc[0].name
-        reign_logger.info(messages["the_winner_is"] % the_winner)
+        message = messages["the_winner_is"] % the_winner
+        telegram_handler.send_message(message)
+        reign_logger.info(message)
 
 
 if __name__ == "__main__":
 
     app_logger.info("Start BoloWartBot")
-
     # ---------------------------------------- #
     # Parse arguments
 
@@ -141,5 +140,6 @@ if __name__ == "__main__":
 
     # ---------------------------------------- #
     # App
-
     __main__()
+
+    app_logger.info("Bye bye.")

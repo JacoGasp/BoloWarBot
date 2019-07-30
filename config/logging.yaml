@@ -2,6 +2,7 @@ version: 1
 formatters:
   simple:
     format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
 handlers:
   console:
     class: logging.StreamHandler
@@ -18,6 +19,10 @@ loggers:
     handlers: [console]
     propagate: no
   Utils:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+  TelegramHandler:
     level: DEBUG
     handlers: [console]
     propagate: no

@@ -1,28 +1,28 @@
 from time import sleep
-from telegram.ext import Dispatcher
-from telegram import InputFile
-from territory import Territory
 import random
 import logging
+
+import pandas as pd
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
+
 from utils.utils import messages, config
-from utils import utils
-import pandas as pd
+from territory import Territory
 
 
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False, telegram_dispatcher: Dispatcher = None):
+    def __init__(self, pandas_obj, should_display_map=False):
         self.obj = pandas_obj
         self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
         self.should_display_map = should_display_map
-        self.telegram_dispatcher = telegram_dispatcher
+
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.__telegram_handler = None
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -104,17 +104,17 @@ class Reign(object):
             message = messages["battle"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
 
         self.logger.info(message)
+        self.__telegram_handler.send_message(message)
 
         # Send poll
-        message_id, poll_id = utils.send_poll(attacker.Territory, defender.Territory)
+        message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory)
 
         # Wait for the vote
-        sleep(config["schedule"]["wait_for_poll"] * 60)
+        sleep(config["schedule"]["wait_for_poll"])
 
         # Close the poll and read the results
-        utils.stop_poll(message_id)
-
-        poll_results = utils.get_last_poll_results(poll_id)
+        self.__telegram_handler.stop_poll(message_id)
+        poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
 
         if poll_results:
             total_votes = sum(poll_results.values())
@@ -133,7 +133,6 @@ class Reign(object):
         # The attacker won
         if attack > defense:
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory)
-            # self.logger.info(message)
 
             # If the empire has more than one territory, reduce its geometry
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
@@ -145,7 +144,6 @@ class Reign(object):
 
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
-                # self.logger.info(message)
 
             # Change the defender's Empire to the attacker one
             old_defender = defender
@@ -157,15 +155,15 @@ class Reign(object):
             self.__update_empire_neighbours(old_defender.Empire)
             self.__expand_empire_geometry(attacker, defender)
 
-            if self.should_display_map:
-                self.draw_map(old_attacker, defender)
-                with open("img.png", "rb") as img:
-                    self.telegram_dispatcher.bot.send_photo(chat_id="@BoloWarBot", photo=InputFile(img),
-                                                            caption=message)
+            # Send map to Telegram
+            self.__send_map_to_bot(old_attacker, defender, caption=message)
+            self.logger.info(message)
+
         # The defender won
         else:
             message = messages["defender_won"] % (defender.Territory, attacker.Territory)
             self.logger.info(message)
+            self.__telegram_handler.send_message(message)
 
     @staticmethod
     def __better_name(name):
@@ -176,7 +174,7 @@ class Reign(object):
         else:
             return words[0] + "\n" + " ".join(words[1:])
 
-    def draw_map(self, attacker: Territory, defender: Territory):
+    def __draw_map(self, attacker: Territory, defender: Territory):
 
         _, ax = plt.subplots(figsize=(12, 12))
         patches = []
@@ -215,3 +213,15 @@ class Reign(object):
         # Save the fig to send later
         img.savefig("img.png")
         # plt.show()
+
+    def __send_map_to_bot(self, attacker, defender, caption):
+        self.__draw_map(attacker, defender)
+        self.__telegram_handler.send_image("img.png", caption=caption)
+
+    @property
+    def telegram_handler(self):
+        return self.__telegram_handler
+
+    @telegram_handler.setter
+    def telegram_handler(self, obj):
+        self.__telegram_handler = obj
