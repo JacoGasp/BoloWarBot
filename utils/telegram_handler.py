@@ -38,12 +38,11 @@ class TelegramHandler(object):
         return json.loads(r.content)
 
     def get_last_update_id(self):
-        is_last_update = False
-        while not is_last_update:
-            r = self.telegram_api("getUpdates", **dict(offset=self.last_update_id))
-            if "result" in r and len(r["result"]) > 0:
-                is_last_update = int(r["result"][-1]["update_id"]) >= self.last_update_id
-                self.last_update_id = int(r["result"][-1]["update_id"])
+        current_update_id = self.bot.get_updates()[-1].update_id
+
+        while self.last_update_id < current_update_id:
+            self.last_update_id = current_update_id
+            current_update_id = self.bot.get_updates()[-1].update_id
 
     def send_poll(self, attacker_name, defender_name):
         question = "some question"
@@ -67,20 +66,28 @@ class TelegramHandler(object):
         return message_id, poll_id
 
     def get_poll(self, poll_id):
-        r = self.telegram_api("getUpdates", **dict(offset=-1))
+
+        # Recompute last update id
+        self.get_last_update_id()
+
+        r = self.telegram_api("getUpdates", **dict(offset=self.last_update_id))
+
         if not r["ok"]:
             self.logger.error("Cannot get poll with poll_id %s", poll_id)
             raise RuntimeError("%s Cannot get poll with poll_id %s" % (__name__, poll_id))
+
         results = r["result"]
         self.last_update_id = results[-1]["update_id"]
 
         poll = filter(lambda x: "poll" in x, results)
         poll = filter(lambda x: x["poll"]["id"] == poll_id, poll)
         poll = list(poll)
+
         if len(poll) > 0:
             self.logger.debug("Successfully got poll with poll_id %s", poll_id)
         else:
             self.logger.warning("Cannot find poll with poll_id %s", poll_id)
+
         return poll
 
     def get_last_poll(self, poll_id):
