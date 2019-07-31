@@ -137,7 +137,7 @@ def __main__():
     telegram_handler.send_cached_data()
 
     try:
-        reign.battle_round = stats["battle_round"] #+ 1
+        reign.battle_round = stats["battle_round"] + 1
     except TypeError:
         stats = dict()
         stats["battle_round"] = 1
@@ -148,7 +148,7 @@ def __main__():
     # ---------------------------------------- #
     # Schedule the turns
 
-    schedule.every(config["schedule"]["minutes_per_round"]).seconds.do(run_threaded, play_turn)
+    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(run_threaded, play_turn)
 
     # ---------------------------------------- #
     # Start the battle
