@@ -8,6 +8,8 @@ from descartes import PolygonPatch
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 
+from telegram import TelegramError
+
 from utils.utils import messages, config
 from territory import Territory
 
@@ -23,6 +25,9 @@ class Reign(object):
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.__telegram_handler = None
+        self.__msg_cache_handler = None
+
+        self.battle_round = 1
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -104,16 +109,20 @@ class Reign(object):
             message = messages["battle"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
 
         self.logger.info(message)
-        self.__telegram_handler.send_message(message)
+        # self.__telegram_handler.send_message(message)
 
-        # Send poll
-        question = messages["poll"]
-        message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
+        # Send poll. If cannot open poll skip the turn
+        question = message + '\n\n' + messages["poll"]
+        try:
+            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
+        except TelegramError:
+            self.logger.warning("Skip turn")
+            return
 
         # Wait for the vote
         sleep(config["schedule"]["wait_for_poll"])
 
-        # Close the poll and read the results
+        # Close the poll and read the results.
         self.__telegram_handler.stop_poll(message_id)
         poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
 
@@ -130,6 +139,8 @@ class Reign(object):
             counts = self.obj.groupby("Empire").count().geometry
             attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
             defense = defender.defend() * counts[defender.Empire] / len(self.obj)
+
+        self.battle_round += 1
 
         # The attacker won
         if attack > defense:
@@ -164,8 +175,10 @@ class Reign(object):
         # The defender won
         else:
             message = messages["defender_won"] % (defender.Territory, attacker.Territory)
-            self.logger.info(message)
+            self.logger.info("Round: %d - %s", self.battle_round, message)
             self.__telegram_handler.send_message(message)
+
+        self.battle_round += 1
 
     @staticmethod
     def __better_name(name):
@@ -213,12 +226,14 @@ class Reign(object):
         img = ax.get_figure()
 
         # Save the fig to send later
-        img.savefig("img.png")
+        img_path = config["saving"]["dir"] + "/img.png"
+        img.savefig(img_path)
         # plt.show()
 
     def __send_map_to_bot(self, attacker, defender, caption):
+        img_path = config["saving"]["dir"] + "/img.png"
         self.__draw_map(attacker, defender)
-        self.__telegram_handler.send_image("img.png", caption=caption)
+        self.__telegram_handler.send_image(img_path, caption=caption, battle_round=self.battle_round)
 
     @property
     def telegram_handler(self):
@@ -227,3 +242,11 @@ class Reign(object):
     @telegram_handler.setter
     def telegram_handler(self, obj):
         self.__telegram_handler = obj
+
+    @property
+    def msg_cache_handler(self):
+        return self.__msg_cache_handler
+
+    @msg_cache_handler.setter
+    def msg_cache_handler(self, obj):
+        self.__msg_cache_handler = obj

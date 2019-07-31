@@ -13,6 +13,7 @@ from reign import Reign
 from utils import utils
 from utils.functions import get_sig_dict
 from utils.telegram_handler import TelegramHandler
+from utils.cache_handler import MsgCacheHandler
 
 messages, config, token, chat_id = utils.messages, utils.config, utils.token, utils.chat_id
 
@@ -91,14 +92,19 @@ def __main__():
     global reign
 
     # ---------------------------------------- #
-
     # Init data handlers
+
     global telegram_handler
     reign = Reign(df, should_display_map=FLAGS.map)
-    telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
-    reign.telegram_handler = telegram_handler
-
     app_logger.debug("Alive empires: %d" % reign.remaing_territories)
+
+    telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
+    msg_cache_handler = MsgCacheHandler()
+
+    reign.telegram_handler = telegram_handler
+    telegram_handler.msg_cache_handler = msg_cache_handler
+
+    telegram_handler.send_cached_data()
 
     # ---------------------------------------- #
     # Schedule the turns

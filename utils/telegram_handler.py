@@ -3,7 +3,7 @@ import logging
 import requests
 
 from telegram.ext import Updater
-from telegram import InputFile
+from telegram import InputFile, TelegramError
 
 
 class TelegramHandler(object):
@@ -20,13 +20,25 @@ class TelegramHandler(object):
 
         self.last_update_id = 0
         self.get_last_update_id()
+        self.__msg_cache_handler = None
 
     def send_message(self, message):
-        self.bot.send_message(chat_id=self.chat_id, text=message)
+        try:
+            self.bot.send_message(chat_id=self.chat_id, text=message)
+            self.__msg_cache_handler.remove_msg_from_cache()
+        except TelegramError as e:
+            self.__msg_cache_handler.add_msg_to_cache(message)
+            self.logger.warning("Message not sent; saved on cache: %s", e)
 
-    def send_image(self, path, caption=None):
-        with open(path, "rb") as img:
-            self.bot.send_photo(photo=InputFile(img), chat_id=self.chat_id, caption=caption)
+    def send_image(self, path, caption=None, battle_round=None):
+        try:
+            with open(path, "rb") as img:
+                self.bot.send_photo(photo=InputFile(img), chat_id=self.chat_id, caption=caption)
+                self.__msg_cache_handler.remove_msg_from_cache()
+
+        except TelegramError as e:
+            self.__msg_cache_handler.add_photo_to_cache(caption=caption, battle_round=battle_round)
+            self.logger.warning("Map not sent saved on cache: %s", e)
 
     def telegram_api(self, command, **kwargs):
         url = f"https://api.telegram.org/bot{self.token}/{command}?"
@@ -53,7 +65,7 @@ class TelegramHandler(object):
 
         if not r["ok"]:
             self.logger.error("Cannot open poll")
-            raise RuntimeError("%s: Cannot open poll" % __name__)
+            raise TelegramError("%s: Cannot open poll" % __name__)
 
         message_id = r["result"]["message_id"]
         poll_id = r["result"]["poll"]["id"]
@@ -126,3 +138,27 @@ class TelegramHandler(object):
         self.logger.debug("%d people voted the poll with poll_id: %s" % (total_votes, poll_id))
         return results
 
+    def send_cached_data(self):
+
+        if self.__msg_cache_handler is not None:
+            cached_msgs = self.__msg_cache_handler.get_cached_msgs()
+            if cached_msgs is not None:
+                self.logger.info("Sending %d cached messages", len(cached_msgs))
+
+                for cached_msg in cached_msgs:
+                    if cached_msg["type"] == "text":
+                        self.send_message(cached_msg["message"])
+                    if cached_msg["type"] == "image":
+                        self.send_image(path=cached_msg["fname"], caption=cached_msg["caption"])
+
+                # Clear cache
+                self.__msg_cache_handler.remove_photo_cache_files()
+                self.__msg_cache_handler.remove_msg_cache_file()
+
+    @property
+    def msg_cache_handler(self):
+        return self.__msg_cache_handler
+
+    @msg_cache_handler.setter
+    def msg_cache_handler(self, obj):
+        self.__msg_cache_handler = obj
