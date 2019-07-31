@@ -92,7 +92,7 @@ class Reign(object):
         attacker_territories = self.obj.query(f'Empire == "{empire}"').index.values.tolist()
         attackers = list(set(attacker_territories) & set(defender.neighbours))
 
-        assert len(attackers) > 0, f"{defender} {attacker_territories}"
+        assert len(attackers) > 0, f"Defender territory: {defender.Territory}; possible attackers: {attacker_territories}"
 
         # Pick a random attacker Territory from Territories at the border
         attacker = random.choice(attackers)
