@@ -120,7 +120,7 @@ class Reign(object):
             return
 
         # Wait for the vote
-        sleep(config["schedule"]["wait_for_poll"])
+        sleep(config["schedule"]["wait_for_poll"] * 60)
 
         # Close the poll and read the results.
         self.__telegram_handler.stop_poll(message_id)
