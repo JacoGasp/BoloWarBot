@@ -107,7 +107,8 @@ class Reign(object):
         self.__telegram_handler.send_message(message)
 
         # Send poll
-        message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory)
+        question = messages["poll"]
+        message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
 
         # Wait for the vote
         sleep(config["schedule"]["wait_for_poll"])

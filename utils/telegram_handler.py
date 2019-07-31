@@ -1,11 +1,7 @@
 import json
-import os
 import logging
 import requests
-try:
-    from utils.utils import messages
-except:
-    pass
+
 from telegram.ext import Updater
 from telegram import InputFile
 
@@ -44,8 +40,7 @@ class TelegramHandler(object):
             self.last_update_id = current_update_id
             current_update_id = self.bot.get_updates()[-1].update_id
 
-    def send_poll(self, attacker_name, defender_name):
-        question = "some question"
+    def send_poll(self, attacker_name, defender_name, question):
 
         poll = dict(
             chat_id=self.chat_id,
@@ -53,7 +48,9 @@ class TelegramHandler(object):
             options=[attacker_name, defender_name],
             disable_notification=True,
         )
+
         r = self.telegram_api("sendPoll", **poll)
+
         if not r["ok"]:
             self.logger.error("Cannot open poll")
             raise RuntimeError("%s: Cannot open poll" % __name__)
@@ -64,6 +61,15 @@ class TelegramHandler(object):
         self.logger.debug("Poll successfully opened. message_id: %s, poll_id: %s", message_id, poll_id)
 
         return message_id, poll_id
+
+    def stop_poll(self, message_id):
+        self.logger.debug("Closing Poll")
+        args = dict(chat_id=self.chat_id, message_id=message_id)
+        r = self.telegram_api("stopPoll", **args)
+        if not r["ok"]:
+            self.logger.error("Cannot stop poll with message id %s", message_id)
+            raise RuntimeError("%s: Cannot stop poll with message_id %s" % (__name__, message_id))
+        self.logger.debug("Successfully closed poll with message_id %s" % message_id)
 
     def get_poll(self, poll_id):
 
@@ -120,11 +126,3 @@ class TelegramHandler(object):
         self.logger.debug("%d people voted the poll with poll_id: %s" % (total_votes, poll_id))
         return results
 
-    def stop_poll(self, message_id):
-        self.logger.debug("Closing Poll")
-        args = dict(chat_id=self.chat_id, message_id=message_id)
-        r = self.telegram_api("stopPoll", **args)
-        if not r["ok"]:
-            self.logger.error("Cannot stop poll with message id %s", message_id)
-            raise RuntimeError("%s: Cannot stop poll with message_id %s" % (__name__, message_id))
-        self.logger.debug("Successfully closed poll with message_id %s" % message_id)
