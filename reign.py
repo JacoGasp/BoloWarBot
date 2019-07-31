@@ -133,7 +133,8 @@ class Reign(object):
 
         # The attacker won
         if attack > defense:
-            message = messages["attacker_won"] % (attacker.Territory, defender.Territory)
+            message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
+                                                  defender.Territory, attacker.Empire)
 
             # If the empire has more than one territory, reduce its geometry
             if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
