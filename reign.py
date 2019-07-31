@@ -140,8 +140,6 @@ class Reign(object):
             attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
             defense = defender.defend() * counts[defender.Empire] / len(self.obj)
 
-        self.battle_round += 1
-
         # The attacker won
         if attack > defense:
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory,

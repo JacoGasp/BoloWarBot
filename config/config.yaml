@@ -10,3 +10,4 @@ saving:
   dir: "temp"
   map_img: "map.png"
   db: "temp.pickle"
+  stats: "stats.json"
