@@ -2,8 +2,12 @@ language: "it"
 db:
   path: "config/bologna.pickle"
 schedule:
-  minutes_per_round: 15
-  wait_for_poll: 14
+  production:
+    round_interval: 15
+    wait_for_poll: 14
+  develop:
+    round_interval: 15
+    wait_for_poll: 14
 telegram:
   chat_id_logging: 178108366
 saving:

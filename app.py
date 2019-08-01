@@ -16,7 +16,7 @@ from utils.functions import get_sig_dict, read_stats
 from utils.telegram_handler import TelegramHandler
 from utils.cache_handler import MsgCacheHandler
 
-messages, config, token, chat_id = utils.messages, utils.config, utils.token, utils.chat_id
+from utils.utils import messages, config, schedule_config, token, chat_id
 
 reign_logger = logging.getLogger("Reign")
 app_logger = logging.getLogger("App")
@@ -90,10 +90,15 @@ def init_reign():
 def play_turn():
     global stats, PLAY
 
+    # Send cached message
+    if telegram_handler is not None:
+        telegram_handler.send_cached_data()
+
     if stats is not None:
         stats["battle_round"] = reign.battle_round
 
     app_logger.info(f"Round {reign.battle_round}")
+
     try:
         reign.battle()
 
@@ -134,8 +139,6 @@ def __main__():
     reign.telegram_handler = telegram_handler
     telegram_handler.msg_cache_handler = msg_cache_handler
 
-    telegram_handler.send_cached_data()
-
     try:
         reign.battle_round = stats["battle_round"] + 1
     except TypeError:
@@ -148,7 +151,11 @@ def __main__():
     # ---------------------------------------- #
     # Schedule the turns
 
-    schedule.every(config["schedule"]["minutes_per_round"]).minutes.do(run_threaded, play_turn)
+    schedule_interval = schedule_config["round_interval"]
+    if config["distribution"] == "production":
+        schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
+    elif config["distribution"] == "develop":
+        schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
 
     # ---------------------------------------- #
     # Start the battle
@@ -169,6 +176,7 @@ def __main__():
 if __name__ == "__main__":
 
     app_logger.info("Start BoloWartBot")
+    app_logger.debug("Distribution: %s", config["distribution"])
     # ---------------------------------------- #
     # Parse arguments
 

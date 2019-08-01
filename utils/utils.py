@@ -4,6 +4,7 @@ import logging.config
 
 token = os.environ["API_TOKEN"]
 chat_id = os.environ["CHAT_ID"]
+distribution = os.environ["DISTRIBUTION"]
 
 with open("config/logging.yaml", "rt") as f:
     logging_config = yaml.safe_load(f)
@@ -21,4 +22,7 @@ def load_configs():
 
 
 config = load_configs()
+config["distribution"] = distribution
+schedule_config = config["schedule"][distribution]
+
 messages = load_messages(config["language"])

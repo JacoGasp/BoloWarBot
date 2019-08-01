@@ -10,7 +10,7 @@ from matplotlib.collections import PatchCollection
 
 from telegram import TelegramError
 
-from utils.utils import messages, config
+from utils.utils import messages, config, schedule_config
 from territory import Territory
 
 
@@ -120,7 +120,11 @@ class Reign(object):
             return
 
         # Wait for the vote
-        sleep(config["schedule"]["wait_for_poll"] * 60)
+        poll_interval = schedule_config["wait_for_poll"]
+        if config["distribution"] == "production":
+            sleep(poll_interval * 60)
+        elif config["distribution"] == "develop":
+            sleep(poll_interval)
 
         # Close the poll and read the results.
         self.__telegram_handler.stop_poll(message_id)
