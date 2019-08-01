@@ -3,7 +3,8 @@ import logging
 import requests
 
 from telegram.ext import Updater
-from telegram import InputFile, TelegramError
+from telegram import InputFile
+from telegram.error import *
 
 
 class TelegramHandler(object):
@@ -26,7 +27,7 @@ class TelegramHandler(object):
         try:
             self.bot.send_message(chat_id=self.chat_id, text=message)
             self.__msg_cache_handler.remove_msg_from_cache()
-        except TelegramError as e:
+        except (TelegramError, NetworkError, Unauthorized, TimeoutError) as e:
             self.__msg_cache_handler.add_msg_to_cache(message)
             self.logger.warning("Message not sent; saved on cache: %s", e)
 
@@ -36,7 +37,7 @@ class TelegramHandler(object):
                 self.bot.send_photo(photo=InputFile(img), chat_id=self.chat_id, caption=caption)
                 self.__msg_cache_handler.remove_msg_from_cache()
 
-        except TelegramError as e:
+        except (TelegramError, NetworkError, Unauthorized, TimeoutError) as e:
             self.__msg_cache_handler.add_photo_to_cache(caption=caption, battle_round=battle_round)
             self.logger.warning("Map not sent saved on cache: %s", e)
 
