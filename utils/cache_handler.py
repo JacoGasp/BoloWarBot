@@ -16,8 +16,8 @@ class MsgCacheHandler(object):
 
     msg_list = []
 
-    def __init__(self, oc_dir=persist_dir, force_mkdir=False):
-        if not os.path.exists(oc_dir) and force_mkdir:
+    def __init__(self, oc_dir=persist_dir):
+        if not os.path.exists(oc_dir):
             os.makedirs(oc_dir)
         elif not os.access(oc_dir, os.R_OK | os.W_OK | os.X_OK):
             raise OSError("Folder {} does not exist or is not writable.".format(oc_dir))
