@@ -150,7 +150,10 @@ class TelegramHandler(object):
                     if cached_msg["type"] == "text":
                         self.send_message(cached_msg["message"])
                     if cached_msg["type"] == "image":
-                        self.send_image(path=cached_msg["fname"], caption=cached_msg["caption"])
+                        try:
+                            self.send_image(path=cached_msg["fname"], caption=cached_msg["caption"])
+                        except FileNotFoundError as e:
+                            self.logger.warning("Cannot send cached image: %s", e)
 
                 # Clear cache
                 self.__msg_cache_handler.remove_photo_cache_files()
