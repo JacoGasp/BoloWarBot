@@ -127,8 +127,8 @@ class Reign(object):
         # self.__telegram_handler.send_message(message)
 
         # Send poll. If cannot open poll skip the turn
-        question = message + '\n\n' + messages["poll"]
         try:
+            question = message + '\n\n' + messages["poll"]
             message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
         except TelegramError:
             self.logger.warning("Skip turn")
