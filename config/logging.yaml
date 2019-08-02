@@ -15,7 +15,7 @@ loggers:
     handlers: [console]
     propagate: no
   Reign:
-    level: INFO
+    level: DEBUG
     handlers: [console]
     propagate: no
   Utils:
