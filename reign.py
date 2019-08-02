@@ -61,6 +61,7 @@ class Reign(object):
         self.obj.loc[empire_territories_index, "empire_geometry"] = [new_geometry] * len(empire_territories_index)
 
         defender_empire_index = self.obj.query(f'Empire == "{defender.Empire}"').index
+        self.logger.debug("Defender empire length: %s", len(defender_empire_index))
         self.obj.loc[defender_empire_index, "Empire"] = [attacker.Empire] * len(defender_empire_index)
 
     def __get_alive_empires(self):
@@ -171,10 +172,7 @@ class Reign(object):
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
 
-                self.__merge_empires(attacker, defender)
-
-
-
+                self.__merge_empires(defender, attacker)
                 self.remaing_territories = len(self.__get_alive_empires()) - 1
 
             else:
@@ -198,7 +196,7 @@ class Reign(object):
 
             # Send map to Telegram
             defender.empire_color = attacker.empire_color
-            self.__send_map_to_bot(attacker, old_defender, caption=message)
+            self.__send_map_to_bot(old_attacker, old_defender, caption=message)
             self.logger.info(message)
 
         # The defender won
