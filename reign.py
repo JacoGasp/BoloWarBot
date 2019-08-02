@@ -1,6 +1,7 @@
 from time import sleep
 import random
 import logging
+from copy import deepcopy
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,6 +29,7 @@ class Reign(object):
         self.__msg_cache_handler = None
 
         self.battle_round = 1
+        random.seed(10)  # TODO to remove
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -41,16 +43,25 @@ class Reign(object):
         self.obj.loc[empire_idx, "empire_neighbours"] = [empire_neighbours] * len(empire_idx)
 
     def __expand_empire_geometry(self, attacker, defender):
-        old_geometry = self.obj.query(f'Empire == "{attacker.Empire}"').loc[attacker.Territory].empire_geometry
+        old_geometry = attacker.empire_geometry
         new_geometry = old_geometry.union(defender.geometry)
         empire_territories_index = self.obj.query(f'Empire == "{attacker.Empire}"').index
         self.obj.loc[empire_territories_index, "empire_geometry"] = [new_geometry] * len(empire_territories_index)
 
     def __reduce_empire_geometry(self, defender):
-        old_geometry = self.obj.query(f'Empire == "{defender.Empire}"').loc[defender.Territory].empire_geometry
+        old_geometry = defender.empire_geometry
         new_geometry = old_geometry.difference(defender.geometry)
         empire_terriories_index = self.obj.query(f'Empire == "{defender.Empire}"').index
         self.obj.loc[empire_terriories_index, "empire_geometry"] = [new_geometry] * len(empire_terriories_index)
+
+    def __merge_empires(self, defender, attacker):
+        new_geometry = attacker.empire_geometry.union(defender.empire_geometry)
+
+        empire_territories_index = self.obj.query(f'Empire == "{attacker.Empire}"').index
+        self.obj.loc[empire_territories_index, "empire_geometry"] = [new_geometry] * len(empire_territories_index)
+
+        defender_empire_index = self.obj.query(f'Empire == "{defender.Empire}"').index
+        self.obj.loc[defender_empire_index, "Empire"] = [attacker.Empire] * len(defender_empire_index)
 
     def __get_alive_empires(self):
         empires = self.obj.Empire.unique()
@@ -97,6 +108,9 @@ class Reign(object):
         # Pick a random attacker Territory from Territories at the border
         attacker = random.choice(attackers)
         attacker = Territory(self.obj.loc[attacker])
+        
+        assert attacker.Territory != defender.Territory, f"Attacker and defender territories are equal: {attacker.Territory}"
+        assert attacker.Empire != defender.Empire, f"Attacker and defender empires are equal: {attacker.Empire}"
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
@@ -149,21 +163,33 @@ class Reign(object):
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
                                                   defender.Territory, attacker.Empire)
 
-            # If the empire has more than one territory, reduce its geometry
-            if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
-                self.__reduce_empire_geometry(defender)
+            old_defender = deepcopy(defender)
+            old_attacker = deepcopy(attacker)
 
-            # If the empire has only one territory, the empire has been defeated
-            else:
-                self.remaing_territories = len(self.__get_alive_empires()) - 1
-
+            # If the capitol city looses, the attacker takes the whole empire
+            if defender.Territory == defender.Empire:
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
 
-            # Change the defender's Empire to the attacker one
-            old_defender = defender
-            old_attacker = attacker
-            self.obj.loc[defender.Territory, "Empire"] = attacker.Empire
+                self.__merge_empires(attacker, defender)
+
+
+
+                self.remaing_territories = len(self.__get_alive_empires()) - 1
+
+            else:
+                # If the empire has more than one territory, reduce its geometry
+                if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
+                    self.__reduce_empire_geometry(defender)
+
+                # If the empire has only one territory, the empire has been defeated
+                else:
+                    self.remaing_territories = len(self.__get_alive_empires()) - 1
+                    message += '\n' + messages["defender_defeated"] % defender.Empire
+                    message += '\n' + messages["remaining_territories"] % self.remaing_territories
+
+                    # Change the defender's Empire to the attacker one
+                    self.obj.loc[defender.Territory, "Empire"] = attacker.Empire
 
             # Update geometries and neighbours
             self.__update_empire_neighbours(attacker.Empire)
@@ -171,7 +197,8 @@ class Reign(object):
             self.__expand_empire_geometry(attacker, defender)
 
             # Send map to Telegram
-            self.__send_map_to_bot(old_attacker, defender, caption=message)
+            defender.empire_color = attacker.empire_color
+            self.__send_map_to_bot(attacker, old_defender, caption=message)
             self.logger.info(message)
 
         # The defender won
@@ -193,7 +220,7 @@ class Reign(object):
 
     def __draw_map(self, attacker: Territory, defender: Territory):
 
-        _, ax = plt.subplots(figsize=(12, 12))
+        fig, ax = plt.subplots(figsize=(12, 12))
         patches = []
         empires = [e for e in self.obj.Empire.unique() if e != attacker.Empire and e != defender.Territory]
 
@@ -207,8 +234,8 @@ class Reign(object):
                         ha="center", fontsize=12)
 
         # Give to the defender the attacker color and add oblique lines on top the defender area
-        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=4, ec="#15F505", zorder=10))
-        ax.add_patch(Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=4, ec="#E1025B", hatch="//", zorder=2))
+        patches.append(PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=4, ec="#15F505"))
+        ax.add_patch(Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=4, ec="#E1025B", hatch="//"))
         # Set the attacker and defender titles
         ax.annotate(s=self.__better_name(attacker.Empire),
                     xy=attacker.geometry.centroid.coords[0],
@@ -231,6 +258,7 @@ class Reign(object):
         img_path = config["saving"]["dir"] + "/img.png"
         img.savefig(img_path)
         # plt.show()
+        plt.close(fig)
 
     def __send_map_to_bot(self, attacker, defender, caption):
         img_path = config["saving"]["dir"] + "/img.png"
