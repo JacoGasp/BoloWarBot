@@ -11,7 +11,6 @@ from time import sleep
 
 import pandas as pd
 from reign import Reign
-from utils import utils
 from utils.functions import get_sig_dict, read_stats
 from utils.telegram_handler import TelegramHandler
 from utils.cache_handler import MsgCacheHandler
@@ -35,14 +34,18 @@ stats = None
 
 # ---------------------------------------- #
 
+def cancel_jobs():
+    for job in schedule.jobs:
+        schedule.cancel_job(job)
+
+
 def exit_app(signum, _):
     app_logger.debug("Terminating with signal %s", sig_dict[signum])
     global PLAY
     PLAY = False
     app_logger.info("Closing the BoloWarBot")
     save_temp()
-    for job in schedule.jobs:
-        schedule.cancel_job(job)
+    cancel_jobs()
 
 
 def save_temp():
@@ -166,7 +169,10 @@ def __main__():
 
     # ---------------------------------------- #
     # End of the war
+
     if reign.remaing_territories == 1:
+        cancel_jobs()
+
         the_winner = reign.obj.groupby("Empire").count().query("color > 1").iloc[0].name
         message = messages["the_winner_is"] % the_winner
         telegram_handler.send_message(message)
