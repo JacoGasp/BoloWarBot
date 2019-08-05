@@ -47,11 +47,13 @@ class TelegramHandler(object):
         return json.loads(r.content)
 
     def get_last_update_id(self):
-        current_update_id = self.bot.get_updates()[-1].update_id
+        updates = self.bot.get_updates()
+        if len(updates) > 0:
+            current_update_id = updates[-1].update_id
 
-        while self.last_update_id < current_update_id:
-            self.last_update_id = current_update_id
-            current_update_id = self.bot.get_updates()[-1].update_id
+            while self.last_update_id < current_update_id:
+                self.last_update_id = current_update_id
+                current_update_id = self.bot.get_updates()[-1].update_id
 
     def send_poll(self, attacker_name, defender_name, question):
 
