@@ -3,7 +3,7 @@ import logging
 import requests
 
 from telegram.ext import Updater
-from telegram import InputFile
+from telegram import InputFile, parsemode
 from telegram.error import *
 
 
@@ -25,7 +25,7 @@ class TelegramHandler(object):
 
     def send_message(self, message):
         try:
-            self.bot.send_message(chat_id=self.chat_id, text=message)
+            self.bot.send_message(chat_id=self.chat_id, text=message, parse_mode=parsemode.ParseMode.MARKDOWN)
             self.__msg_cache_handler.remove_msg_from_cache()
         except (TelegramError, NetworkError, Unauthorized, TimeoutError) as e:
             self.__msg_cache_handler.add_msg_to_cache(message)
@@ -34,7 +34,7 @@ class TelegramHandler(object):
     def send_image(self, path, caption=None, battle_round=None):
         try:
             with open(path, "rb") as img:
-                self.bot.send_photo(photo=InputFile(img), chat_id=self.chat_id, caption=caption)
+                self.bot.send_photo(photo=InputFile(img), chat_id=self.chat_id, caption=caption, parse_mode=parsemode.ParseMode.MARKDOWN)
                 self.__msg_cache_handler.remove_msg_from_cache()
 
         except (TelegramError, NetworkError, Unauthorized, TimeoutError) as e:
