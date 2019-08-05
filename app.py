@@ -27,7 +27,7 @@ sig_dict = {}
 telegram_handler = None
 
 FLAGS = None
-PLAY = True
+PLAY = False
 reign = None
 stats = None
 
@@ -110,7 +110,7 @@ def play_turn():
         app_logger.error(error_message)
         telegram_handler.bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
 
-    if reign.remaing_territories == 1:
+    if reign.remaing_territories == 0:
         PLAY = False
 
     # Save the partial battle state
@@ -153,12 +153,16 @@ def __main__():
 
     # ---------------------------------------- #
     # Schedule the turns
-
-    schedule_interval = schedule_config["round_interval"]
-    if config["distribution"] == "production":
-        schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
-    elif config["distribution"] == "develop":
-        schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
+    if reign.remaing_territories > 1:
+        global PLAY
+        PLAY = True
+        schedule_interval = schedule_config["round_interval"]
+        if config["distribution"] == "production":
+            schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
+        elif config["distribution"] == "develop":
+            schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
+    else:
+        app_logger.warning("The war is over")
 
     # ---------------------------------------- #
     # Start the battle
@@ -170,9 +174,8 @@ def __main__():
     # ---------------------------------------- #
     # End of the war
 
-    if reign.remaing_territories == 1:
+    if reign.remaing_territories <= 1:
         cancel_jobs()
-
         the_winner = reign.obj.groupby("Empire").count().query("color > 1").iloc[0].name
         message = messages["the_winner_is"] % the_winner
         telegram_handler.send_message(message)
