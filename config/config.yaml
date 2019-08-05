@@ -3,11 +3,11 @@ db:
   path: "config/bologna.pickle"
 schedule:
   production:
-    round_interval: 10
-    wait_for_poll: 9
+    round_interval: 15
+    wait_for_poll: 4
   develop:
-    round_interval: 12
-    wait_for_poll: 8
+    round_interval: 8
+    wait_for_poll: 4
 telegram:
   chat_id_logging: 178108366
 saving:
