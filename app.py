@@ -4,6 +4,13 @@ from Reign import *
 
 df = pd.read_pickle("bologna.pickle")
 
+# Alternative loop version to define reigns dictionary
+
+#reigns={}
+#for k in df.COMUNE.values:
+#    reignsb[k.lower()]= Reign(k,df[df.COMUNE==k])
+    
+    
 reigns = {k.lower(): Reign(k, df[df.COMUNE == k]) for k in df.COMUNE.values}
 
 
