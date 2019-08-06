@@ -7,7 +7,7 @@ def get_sig_dict():
                 if v.startswith('SIG') and not v.startswith('SIG_'))
 
 
-def read_stats(path, logger):
+def read_saved_turn(path, logger):
     try:
         with open(path, "r") as f:
             return json.load(f)

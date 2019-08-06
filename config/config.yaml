@@ -14,4 +14,5 @@ saving:
   dir: "temp"
   map_img: "map.png"
   db: "temp.pickle"
+  saved_turn: "saved_turn.json"
   stats: "stats.json"

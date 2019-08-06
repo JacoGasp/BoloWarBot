@@ -26,3 +26,7 @@ loggers:
     level: DEBUG
     handlers: [console]
     propagate: no
+  StatsHandler:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
