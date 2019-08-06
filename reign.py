@@ -1,3 +1,4 @@
+import os
 from time import sleep
 import random
 import logging
@@ -70,6 +71,26 @@ class Reign(object):
         empires = self.obj.Empire.unique()
         return list(empires)
 
+    def __send_poll(self, attacker, defender, message):
+        try:
+            question = f"Turno: {self.battle_round}\n{message}\n{messages['poll']}"
+            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
+        except TelegramError:
+            self.logger.warning("Skip turn")
+            return
+
+        # Wait for the vote
+        poll_interval = schedule_config["wait_for_poll"]
+        if config["distribution"] == "production":
+            sleep(poll_interval * 60)
+        elif config["distribution"] == "develop":
+            sleep(poll_interval)
+
+        # Close the poll and read the results.
+        self.__telegram_handler.stop_poll(message_id)
+        poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
+        return poll_results
+
     def battle(self):
         """
         - Choose a random Empire ∑ (attacker reign)
@@ -116,7 +137,8 @@ class Reign(object):
         assert attacker.Territory != defender.Territory, f"Attacker and defender territories are equal: {attacker.Territory}"
         assert attacker.Empire != defender.Empire, f"Attacker and defender empires are equal: {attacker.Empire}"
         assert attacker.Territory not in self.obj.query(
-            f'Empire == "{defender.Empire}"').index.tolist(), f"Attacker territory {attacker.Territory} in defender empire {defender.Empire}"
+            f'Empire == "{defender.Empire}"').index.tolist(), f"Attacker territory {attacker.Territory} " \
+                                                              f"in defender empire {defender.Empire}"
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
@@ -131,24 +153,7 @@ class Reign(object):
         self.logger.info(message)
 
         # Send poll. If cannot open poll skip the turn
-        try:
-            question = message + '\n\n' + messages["poll"]
-            question = "Turno: %d\n\n" % self.battle_round + question
-            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
-        except TelegramError:
-            self.logger.warning("Skip turn")
-            return
-
-        # Wait for the vote
-        poll_interval = schedule_config["wait_for_poll"]
-        if config["distribution"] == "production":
-            sleep(poll_interval * 60)
-        elif config["distribution"] == "develop":
-            sleep(poll_interval)
-
-        # Close the poll and read the results.
-        self.__telegram_handler.stop_poll(message_id)
-        poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
+        poll_results = self.__send_poll(attacker, defender, message)
 
         if poll_results:
             total_votes = sum(poll_results.values())
@@ -247,7 +252,7 @@ class Reign(object):
         assert defender.Empire not in empires, "Defender's empire in empires"
 
         def annotate(s, xy, fontsize=12):
-            ax.annotate(s=self.__better_name(s), xy=xy, fontsize=fontsize)
+            ax.annotate(s=self.__better_name(s), xy=xy, fontsize=fontsize, ha="center")
 
         try:
             # Add all empire patches but both attacker and defender territories
@@ -288,7 +293,9 @@ class Reign(object):
             img = ax.get_figure()
 
             # Save the fig to send later
-            img_path = config["saving"]["dir"] + "/img.png"
+            if not os.path.exists(config["saving"]["dir"]):
+                os.makedirs(config["saving"]["dir"])
+            img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
             img.savefig(img_path)
             # plt.show()
             plt.close(fig)
@@ -298,7 +305,7 @@ class Reign(object):
             raise e
 
     def __send_map_to_bot(self, attacker, defender, caption):
-        img_path = config["saving"]["dir"] + "/img.png"
+        img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
         self.__draw_map(attacker=attacker, defender=defender)
         self.__telegram_handler.send_image(img_path, caption=caption, battle_round=self.battle_round)
 
