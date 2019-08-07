@@ -11,22 +11,22 @@ handlers:
     stream: ext://sys.stdout
 loggers:
   App:
-    level: DEBUG
+    level: INFO
     handlers: [console]
     propagate: no
   Reign:
-    level: DEBUG
+    level: INFO
     handlers: [console]
     propagate: no
   Utils:
-    level: DEBUG
+    level: INFO
     handlers: [console]
     propagate: no
   TelegramHandler:
-    level: DEBUG
+    level: INFO
     handlers: [console]
     propagate: no
   StatsHandler:
-    level: DEBUG
+    level: INFO
     handlers: [console]
     propagate: no

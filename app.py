@@ -39,6 +39,25 @@ def cancel_jobs():
         schedule.cancel_job(job)
 
 
+def start_main_job():
+    for round_time in schedule_config["rounds_at_time"]:
+        if config["distribution"] == "production":
+            schedule.every().hour.at(round_time).do(run_threaded, play_turn).tag("main_job")
+        elif config["distribution"] == "develop":
+            schedule.every().minute.at(round_time).do(run_threaded, play_turn).tag("main_job")
+
+    next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
+    app_logger.info("The Battle continues. Next turn will be at %s", next_run)
+
+
+def cancel_main_job():
+    schedule.clear("main_job")
+    app_logger.info("Main job canceled.")
+    for job in schedule.jobs:
+        if "start_job" in job.tags:
+            app_logger.info("The battle will continue on %s", job.next_run.strftime("%Y-%m-%d %H:%M:%S"))
+
+
 def exit_app(signum, _):
     app_logger.debug("Terminating with signal %s", sig_dict[signum])
     global PLAY
@@ -116,6 +135,9 @@ def play_turn():
     # Save the partial battle state
     save_temp()
 
+    next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
+    app_logger.info("Next turn will be at %s", next_run)
+
 
 def run_threaded(job_func):
     job_thread = threading.Thread(target=job_func)
@@ -155,14 +177,14 @@ def __main__():
 
     # ---------------------------------------- #
     # Schedule the turns
+
     if reign.remaing_territories > 1:
         global PLAY
         PLAY = True
-        schedule_interval = schedule_config["round_interval"]
-        if config["distribution"] == "production":
-            schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
-        elif config["distribution"] == "develop":
-            schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
+        schedule.every().day.at(schedule_config["start_time"]).do(start_main_job).tag("start_job")
+        schedule.every().day.at(schedule_config["stop_time"]).do(cancel_main_job).tag("stop_job")
+        start_main_job()
+
     else:
         app_logger.warning("The war is over")
 
