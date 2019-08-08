@@ -15,7 +15,7 @@ schedule:
 telegram:
   chat_id_logging: 178108366
 saving:
-  dir: "temp2"
+  dir: "temp"
   map_img: "map.png"
   db: "temp.pickle"
   saved_turn: "saved_turn.json"
