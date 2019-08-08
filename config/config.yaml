@@ -8,14 +8,14 @@ schedule:
       rounds_at_time: [":00", ":15", ":30", ":45"]
       wait_for_poll: 14
   develop:
-    start_time: "11:40"
-    stop_time: "11:39:00"
+    start_time: "07:59"
+    stop_time: "23:50"
     rounds_at_time: [":00", ":15", ":30", ":45"]
     wait_for_poll: 10
 telegram:
   chat_id_logging: 178108366
 saving:
-  dir: "temp"
+  dir: "temp2"
   map_img: "map.png"
   db: "temp.pickle"
   saved_turn: "saved_turn.json"
