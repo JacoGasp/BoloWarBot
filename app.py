@@ -1,9 +1,188 @@
+import argparse
+import threading
+import signal
+import os
+import traceback
+import logging
+import json
+
+import schedule
+from time import sleep
+
 import pandas as pd
-from random import choice
-from Reign import *
+from reign import Reign
+from utils.functions import get_sig_dict, read_stats
+from utils.telegram_handler import TelegramHandler
+from utils.cache_handler import MsgCacheHandler
 
-df = pd.read_pickle("bologna.pickle")
+from utils.utils import messages, config, schedule_config, token, chat_id
 
+reign_logger = logging.getLogger("Reign")
+app_logger = logging.getLogger("App")
+
+# ---------------------------------------- #
+# Global Variables
+
+sig_dict = {}
+telegram_handler = None
+
+FLAGS = None
+PLAY = False
+reign = None
+stats = None
+
+
+# ---------------------------------------- #
+
+def cancel_jobs():
+    for job in schedule.jobs:
+        schedule.cancel_job(job)
+
+
+def exit_app(signum, _):
+    app_logger.debug("Terminating with signal %s", sig_dict[signum])
+    global PLAY
+    PLAY = False
+    app_logger.info("Closing the BoloWarBot")
+    save_temp()
+    cancel_jobs()
+
+
+def save_temp():
+    if reign.obj is not None:
+        if not os.path.exists(config["saving"]["dir"]):
+            os.makedirs(config["saving"]["dir"])
+
+    df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    stats_path = os.path.join(config["saving"]["dir"], config["saving"]["stats"])
+    try:
+        if stats is not None:
+            with open(stats_path, "w") as f:
+                json.dump(stats, f)
+                app_logger.debug('Stats saved to "%s"' % stats_path)
+    except (FileNotFoundError, OSError, Exception):
+        app_logger.error("Cannot save statistics to disk")
+
+    try:
+        pd.to_pickle(reign.obj, df_path)
+        app_logger.debug('Dataframe saved to "%s"' % df_path)
+    except (FileNotFoundError, OSError):
+        app_logger.error("Cannot save state to pickle")
+
+
+def init_reign():
+    global reign
+    df = None
+    file_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    try:
+        df = pd.read_pickle(file_path)
+        app_logger.info("Saved state successfully loaded")
+
+    except (FileNotFoundError, OSError):
+        df = pd.read_pickle(config["db"]["path"])
+        app_logger.info("Saved state file not found. Initializing new game")
+
+    finally:
+        if df is not None:
+            reign = Reign(df, should_display_map=FLAGS.map)
+            app_logger.debug("Alive empires: %d" % reign.remaing_territories)
+        else:
+            raise RuntimeError("Cannot initialize geopandas dataframe")
+
+
+def play_turn():
+    global stats, PLAY
+
+    # Send cached message
+    if telegram_handler is not None:
+        telegram_handler.send_cached_data()
+
+    if stats is not None:
+        stats["battle_round"] = reign.battle_round
+
+    app_logger.info(f"Round {reign.battle_round}")
+
+    try:
+        reign.battle()
+
+    except Exception:
+        error_message = traceback.format_exc()
+        app_logger.error(error_message)
+        telegram_handler.bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
+
+    if reign.remaing_territories == 0:
+        PLAY = False
+
+    # Save the partial battle state
+    save_temp()
+
+
+def run_threaded(job_func):
+    job_thread = threading.Thread(target=job_func)
+    job_thread.start()
+
+
+def __main__():
+
+    # ---------------------------------------- #
+    # Load the data. Try to restore previously partial dataframe.
+
+    init_reign()
+    global stats
+    stats = read_stats(os.path.join(config["saving"]["dir"], config["saving"]["stats"]), app_logger)
+
+    # ---------------------------------------- #
+    # Init data handlers
+
+    global telegram_handler
+
+    telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
+    msg_cache_handler = MsgCacheHandler()
+
+    reign.telegram_handler = telegram_handler
+    telegram_handler.msg_cache_handler = msg_cache_handler
+
+    try:
+        reign.battle_round = stats["battle_round"] + 1
+    except TypeError:
+        stats = dict()
+        stats["battle_round"] = 1
+        # Send Start message
+        reign_logger.info(messages["start"])
+        telegram_handler.send_message(messages["start"])
+
+    # ---------------------------------------- #
+    # Schedule the turns
+    if reign.remaing_territories > 1:
+        global PLAY
+        PLAY = True
+        schedule_interval = schedule_config["round_interval"]
+        if config["distribution"] == "production":
+            schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
+        elif config["distribution"] == "develop":
+            schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
+    else:
+        app_logger.warning("The war is over")
+
+    # ---------------------------------------- #
+    # Start the battle
+
+    while PLAY:
+        schedule.run_pending()
+        sleep(1)
+
+    # ---------------------------------------- #
+    # End of the war
+
+    if reign.remaing_territories <= 1:
+        cancel_jobs()
+        the_winner = reign.obj.groupby("Empire").count().query("color > 1").iloc[0].name
+        message = messages["the_winner_is"] % the_winner
+        telegram_handler.send_message(message)
+        reign_logger.info(message)
+
+
+<<<<<<< HEAD
 # Alternative loop version to define reigns dictionary
 
 #reigns={}
@@ -12,19 +191,28 @@ df = pd.read_pickle("bologna.pickle")
     
     
 reigns = {k.lower(): Reign(k, df[df.COMUNE == k]) for k in df.COMUNE.values}
+=======
+if __name__ == "__main__":
+>>>>>>> dc3ad6116388fc14aedd10fce7a50709671b228a
 
+    app_logger.info("Start BoloWartBot")
+    app_logger.debug("Distribution: %s", config["distribution"])
+    # ---------------------------------------- #
+    # Parse arguments
 
-def battle():
-    while len(reigns) > 1:
-        reign: Reign = choice(list(reigns.values()))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--map", "-m", action="store_true", help="If present, display the map")
+    FLAGS = parser.parse_args()
 
-        neighbours = reign.get_neighbours()
-        enemy_name = choice(neighbours)
-        enemy = reigns[enemy_name.lower()]
+    # ---------------------------------------- #
+    # Register exit handler
 
-        if reign.attack(enemy):
-            del reigns[enemy_name.lower()]
-            print(f"Remaining reigns: {len(reigns)}")
+    sig_dict = get_sig_dict()
+    signal.signal(signal.SIGINT, exit_app)
+    signal.signal(signal.SIGTERM, exit_app)
 
+    # ---------------------------------------- #
+    # App
+    __main__()
 
-battle()
+    app_logger.info("Bye bye.")

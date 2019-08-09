@@ -1,0 +1,8 @@
+descartes
+matplotlib
+geopandas
+PyYAML
+requests
+pandas
+schedule
+python-telegram-bot

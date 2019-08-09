@@ -1,0 +1,28 @@
+version: 1
+formatters:
+  simple:
+    format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    datefmt: '%Y-%m-%d %H:%M:%S'
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: simple
+    stream: ext://sys.stdout
+loggers:
+  App:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+  Reign:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+  Utils:
+    level: DEBUG
+    handlers: [console]
+    propagate: no
+  TelegramHandler:
+    level: DEBUG
+    handlers: [console]
+    propagate: no

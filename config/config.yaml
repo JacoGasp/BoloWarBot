@@ -1,0 +1,17 @@
+language: "it"
+db:
+  path: "config/bologna.pickle"
+schedule:
+  production:
+    round_interval: 15
+    wait_for_poll: 4
+  develop:
+    round_interval: 8
+    wait_for_poll: 4
+telegram:
+  chat_id_logging: 178108366
+saving:
+  dir: "temp"
+  map_img: "map.png"
+  db: "temp.pickle"
+  stats: "stats.json"
