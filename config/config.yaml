@@ -4,8 +4,8 @@ db:
 schedule:
   production:
       start_time: "07:59"
-      stop_time: "23:50"
-      rounds_at_time: [":00", ":15", ":30", ":45"]
+      stop_time: "20:01"
+      rounds_at_time: ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
       wait_for_poll: 14
   develop:
     start_time: "07:59"

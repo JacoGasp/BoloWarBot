@@ -42,7 +42,7 @@ def cancel_jobs():
 def start_main_job():
     for round_time in schedule_config["rounds_at_time"]:
         if config["distribution"] == "production":
-            schedule.every().hour.at(round_time).do(run_threaded, play_turn).tag("main_job")
+            schedule.every().day.at(round_time).do(run_threaded, play_turn).tag("main_job")
         elif config["distribution"] == "develop":
             schedule.every().minute.at(round_time).do(run_threaded, play_turn).tag("main_job")
 
