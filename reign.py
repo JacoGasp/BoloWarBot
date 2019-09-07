@@ -1,3 +1,4 @@
+import os
 from time import sleep
 import random
 import logging
@@ -8,6 +9,7 @@ import matplotlib.pyplot as plt
 from descartes import PolygonPatch
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
+import matplotlib.patheffects as PathEffects
 from shapely.geometry.multipolygon import MultiPolygon
 from telegram import TelegramError
 from utils.utils import messages, config, schedule_config
@@ -70,6 +72,25 @@ class Reign(object):
         empires = self.obj.Empire.unique()
         return list(empires)
 
+    def __send_poll(self, attacker, defender):
+        try:
+            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, messages['poll'])
+        except TelegramError:
+            self.logger.warning("Skip turn")
+            return
+
+        # Wait for the vote
+        poll_interval = schedule_config["wait_for_poll"]
+        if config["distribution"] == "production":
+            sleep(poll_interval * 60)
+        elif config["distribution"] == "develop":
+            sleep(poll_interval)
+
+        # Close the poll and read the results.
+        self.__telegram_handler.stop_poll(message_id)
+        poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
+        return poll_results
+
     def battle(self):
         """
         - Choose a random Empire ∑ (attacker reign)
@@ -116,7 +137,8 @@ class Reign(object):
         assert attacker.Territory != defender.Territory, f"Attacker and defender territories are equal: {attacker.Territory}"
         assert attacker.Empire != defender.Empire, f"Attacker and defender empires are equal: {attacker.Empire}"
         assert attacker.Territory not in self.obj.query(
-            f'Empire == "{defender.Empire}"').index.tolist(), f"Attacker territory {attacker.Territory} in defender empire {defender.Empire}"
+            f'Empire == "{defender.Empire}"').index.tolist(), f"Attacker territory {attacker.Territory} " \
+                                                              f"in defender empire {defender.Empire}"
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
@@ -130,25 +152,12 @@ class Reign(object):
 
         self.logger.info(message)
 
+        # Send map with caption
+        message = "*Round %d:*\n" % self.battle_round + message
+        self.__send_map_to_bot(attacker=attacker, defender=defender, caption=message)
+
         # Send poll. If cannot open poll skip the turn
-        try:
-            question = message + '\n\n' + messages["poll"]
-            question = "Turno: %d\n\n" % self.battle_round + question
-            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, question)
-        except TelegramError:
-            self.logger.warning("Skip turn")
-            return
-
-        # Wait for the vote
-        poll_interval = schedule_config["wait_for_poll"]
-        if config["distribution"] == "production":
-            sleep(poll_interval * 60)
-        elif config["distribution"] == "develop":
-            sleep(poll_interval)
-
-        # Close the poll and read the results.
-        self.__telegram_handler.stop_poll(message_id)
-        poll_results = self.__telegram_handler.get_last_poll_results(poll_id)
+        poll_results = self.__send_poll(attacker, defender)
 
         if poll_results:
             total_votes = sum(poll_results.values())
@@ -217,7 +226,9 @@ class Reign(object):
             self.__expand_empire_geometry(attacker, defender)
 
             # Send map to Telegram
-            self.__send_map_to_bot(attacker=old_attacker, defender=old_defender, caption=message)
+            self.__telegram_handler.send_message(message)
+            # self.__send_map_to_bot(attacker=old_attacker, defender=old_defender, caption=message)
+
             self.logger.info(message)
 
         # The defender won
@@ -234,10 +245,12 @@ class Reign(object):
         words = ["S." if x == "San" else x for x in words]
         if len(words) >= 4:
             return " ".join(words[:2]) + "\n" + " ".join(words[2:])
+        elif len(words) == 1:
+            return words[0]
         else:
             return words[0] + "\n" + " ".join(words[1:])
 
-    def __draw_map(self, attacker: Territory, defender: Territory):
+    def draw_map(self, attacker: Territory, defender: Territory):
 
         fig, ax = plt.subplots(figsize=(12, 12))
         patches = []
@@ -246,16 +259,18 @@ class Reign(object):
         assert attacker.Empire not in empires, "Attacker's empire in empires"
         assert defender.Empire not in empires, "Defender's empire in empires"
 
-        def annotate(s, xy, fontsize=12):
-            ax.annotate(s=self.__better_name(s), xy=xy, fontsize=fontsize)
-
+        def annotate(s, xy, fontsize=10):
+            ax.annotate(s=self.__better_name(s), xy=list(xy),
+                        fontsize=fontsize, ha="center", color="white",
+                        path_effects=[PathEffects.withStroke(linewidth=2, foreground="k")]
+                        )
         try:
             # Add all empire patches but both attacker and defender territories
             for empire_name, empire in self.obj.loc[empires].iterrows():
                 color = empire.empire_color
                 patches.append(
                     PolygonPatch(empire.empire_geometry, alpha=0.75, fc=color, ec="#555555"))
-                annotate(s=empire_name, xy=empire.empire_geometry.centroid.coords[0])
+                annotate(s=empire_name, xy=empire.empire_geometry.representative_point().coords[0])
 
             # Give to the defender the attacker color and add oblique lines on top the defender area
             patches.append(
@@ -273,9 +288,16 @@ class Reign(object):
 
             patches.append(
                 PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=4, ec="#15F505"))
+
             # Set the attacker and defender titles
-            annotate(s=attacker.Empire, xy=attacker.empire_geometry.centroid.coords[0], fontsize=18)
-            annotate(s=defender.Empire, xy=defender.empire_geometry.centroid.coords[0], fontsize=18)
+            annotate(s=attacker.Empire, xy=attacker.empire_geometry.representative_point().coords[0])
+            annotate(s=defender.Empire, xy=defender.empire_geometry.representative_point().coords[0])
+
+            if attacker.Empire != attacker.Territory:
+                annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
+
+            if defender.Empire != defender.Territory:
+                annotate(s=defender.Territory, xy=defender.geometry.representative_point().coords[0])
 
             # Add all patches
             ax.add_collection(PatchCollection(patches, match_original=True))
@@ -286,11 +308,13 @@ class Reign(object):
             plt.axis('equal')
             plt.tight_layout()
             img = ax.get_figure()
+            plt.show()
 
             # Save the fig to send later
-            img_path = config["saving"]["dir"] + "/img.png"
+            if not os.path.exists(config["saving"]["dir"]):
+                os.makedirs(config["saving"]["dir"])
+            img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
             img.savefig(img_path)
-            # plt.show()
             plt.close(fig)
         except (AttributeError, KeyError, ValueError, OSError) as e:
             self.logger.error("Error drawing map for attacker: %s; defender %s with error: %s", attacker.Territory,
@@ -298,8 +322,8 @@ class Reign(object):
             raise e
 
     def __send_map_to_bot(self, attacker, defender, caption):
-        img_path = config["saving"]["dir"] + "/img.png"
-        self.__draw_map(attacker=attacker, defender=defender)
+        img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
+        self.draw_map(attacker=attacker, defender=defender)
         self.__telegram_handler.send_image(img_path, caption=caption, battle_round=self.battle_round)
 
     @property

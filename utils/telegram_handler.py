@@ -22,6 +22,7 @@ class TelegramHandler(object):
         self.last_update_id = 0
         self.get_last_update_id()
         self.__msg_cache_handler = None
+        self.__stats_handler = None
 
     def send_message(self, message):
         try:
@@ -118,6 +119,11 @@ class TelegramHandler(object):
 
         for update in poll:
             if update["update_id"] == max(ids):
+
+                # Write poll results to stats
+                if self.stats_handler is not None:
+                    self.stats_handler.stats.append(update["poll"])
+
                 return update["poll"]
 
     def get_last_poll_results(self, poll_id):
@@ -168,3 +174,11 @@ class TelegramHandler(object):
     @msg_cache_handler.setter
     def msg_cache_handler(self, obj):
         self.__msg_cache_handler = obj
+
+    @property
+    def stats_handler(self):
+        return self.__stats_handler
+
+    @stats_handler.setter
+    def stats_handler(self, obj):
+        self.__stats_handler = obj

@@ -11,10 +11,10 @@ from time import sleep
 
 import pandas as pd
 from reign import Reign
-from utils.functions import get_sig_dict, read_stats
+from utils.functions import get_sig_dict, read_saved_turn
 from utils.telegram_handler import TelegramHandler
 from utils.cache_handler import MsgCacheHandler
-
+from utils.stats_handler import StatsHandler
 from utils.utils import messages, config, schedule_config, token, chat_id
 
 reign_logger = logging.getLogger("Reign")
@@ -29,7 +29,7 @@ telegram_handler = None
 FLAGS = None
 PLAY = False
 reign = None
-stats = None
+saved_turn = None
 
 
 # ---------------------------------------- #
@@ -37,6 +37,25 @@ stats = None
 def cancel_jobs():
     for job in schedule.jobs:
         schedule.cancel_job(job)
+
+
+def start_main_job():
+    for round_time in schedule_config["rounds_at_time"]:
+        if config["distribution"] == "production":
+            schedule.every().day.at(round_time).do(run_threaded, play_turn).tag("main_job")
+        elif config["distribution"] == "develop":
+            schedule.every().minute.at(round_time).do(run_threaded, play_turn).tag("main_job")
+
+    next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
+    app_logger.info("The Battle continues. Next turn will be at %s", next_run)
+
+
+def cancel_main_job():
+    schedule.clear("main_job")
+    app_logger.info("Main job canceled.")
+    for job in schedule.jobs:
+        if "start_job" in job.tags:
+            app_logger.info("The battle will continue on %s", job.next_run.strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def exit_app(signum, _):
@@ -54,12 +73,12 @@ def save_temp():
             os.makedirs(config["saving"]["dir"])
 
     df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
-    stats_path = os.path.join(config["saving"]["dir"], config["saving"]["stats"])
+    saved_turn_path = os.path.join(config["saving"]["dir"], config["saving"]["saved_turn"])
     try:
-        if stats is not None:
-            with open(stats_path, "w") as f:
-                json.dump(stats, f)
-                app_logger.debug('Stats saved to "%s"' % stats_path)
+        if saved_turn is not None:
+            with open(saved_turn_path, "w") as f:
+                json.dump(saved_turn, f)
+                app_logger.debug('saved_turn saved to "%s"' % saved_turn_path)
     except (FileNotFoundError, OSError, Exception):
         app_logger.error("Cannot save statistics to disk")
 
@@ -91,14 +110,14 @@ def init_reign():
 
 
 def play_turn():
-    global stats, PLAY
+    global saved_turn, PLAY
 
     # Send cached message
     if telegram_handler is not None:
         telegram_handler.send_cached_data()
 
-    if stats is not None:
-        stats["battle_round"] = reign.battle_round
+    if saved_turn is not None:
+        saved_turn["battle_round"] = reign.battle_round
 
     app_logger.info(f"Round {reign.battle_round}")
 
@@ -116,6 +135,9 @@ def play_turn():
     # Save the partial battle state
     save_temp()
 
+    next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
+    app_logger.info("Next turn will be at %s", next_run)
+
 
 def run_threaded(job_func):
     job_thread = threading.Thread(target=job_func)
@@ -128,8 +150,8 @@ def __main__():
     # Load the data. Try to restore previously partial dataframe.
 
     init_reign()
-    global stats
-    stats = read_stats(os.path.join(config["saving"]["dir"], config["saving"]["stats"]), app_logger)
+    global saved_turn
+    saved_turn = read_saved_turn(os.path.join(config["saving"]["dir"], config["saving"]["saved_turn"]), app_logger)
 
     # ---------------------------------------- #
     # Init data handlers
@@ -138,29 +160,31 @@ def __main__():
 
     telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
     msg_cache_handler = MsgCacheHandler()
+    stats_handler = StatsHandler(file_path=os.path.join(config["saving"]["dir"], config["saving"]["stats"]))
 
     reign.telegram_handler = telegram_handler
     telegram_handler.msg_cache_handler = msg_cache_handler
+    telegram_handler.stats_handler = stats_handler
 
     try:
-        reign.battle_round = stats["battle_round"] + 1
+        reign.battle_round = saved_turn["battle_round"] + 1
     except TypeError:
-        stats = dict()
-        stats["battle_round"] = 1
+        saved_turn = dict()
+        saved_turn["battle_round"] = 1
         # Send Start message
         reign_logger.info(messages["start"])
         telegram_handler.send_message(messages["start"])
 
     # ---------------------------------------- #
     # Schedule the turns
+
     if reign.remaing_territories > 1:
         global PLAY
         PLAY = True
-        schedule_interval = schedule_config["round_interval"]
-        if config["distribution"] == "production":
-            schedule.every(schedule_interval).minutes.do(run_threaded, play_turn)
-        elif config["distribution"] == "develop":
-            schedule.every(schedule_interval).seconds.do(run_threaded, play_turn)
+        schedule.every().day.at(schedule_config["start_time"]).do(start_main_job).tag("start_job")
+        schedule.every().day.at(schedule_config["stop_time"]).do(cancel_main_job).tag("stop_job")
+        start_main_job()
+
     else:
         app_logger.warning("The war is over")
 
