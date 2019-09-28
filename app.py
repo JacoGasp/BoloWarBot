@@ -93,8 +93,6 @@ def init_reign():
     global reign
     df = None
     file_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
-    threshold = config["balance"]["threshold"]
-    low_b = config["balance"]["low_b"]
     try:
         df = pd.read_pickle(file_path)
         app_logger.info("Saved state successfully loaded")
@@ -105,7 +103,7 @@ def init_reign():
 
     finally:
         if df is not None:
-            reign = Reign(df, threshold, low_b, should_display_map=FLAGS.map)
+            reign = Reign(df, should_display_map=FLAGS.map)
             app_logger.debug("Alive empires: %d" % reign.remaing_territories)
         else:
             raise RuntimeError("Cannot initialize geopandas dataframe")
@@ -208,8 +206,18 @@ def __main__():
         reign_logger.info(message)
 
 
+<<<<<<< HEAD
+# Alternative loop version to define reigns dictionary
 
+#reigns={}
+#for k in df.COMUNE.values:
+#    reignsb[k.lower()]= Reign(k,df[df.COMUNE==k])
+    
+    
+reigns = {k.lower(): Reign(k, df[df.COMUNE == k]) for k in df.COMUNE.values}
+=======
 if __name__ == "__main__":
+>>>>>>> dc3ad6116388fc14aedd10fce7a50709671b228a
 
     app_logger.info("Start BoloWartBot")
     app_logger.debug("Distribution: %s", config["distribution"])
