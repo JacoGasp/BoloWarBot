@@ -32,8 +32,8 @@ class Reign(object):
 
         self.battle_round = 1
 
-        self.threshold = threshold
-        self.low_b = low_b
+        self.empire_size_low_threshold = threshold
+        self.lowest_empire_weight = low_b
 
         # random.seed(10)
 
@@ -123,25 +123,27 @@ class Reign(object):
         # Choose ∑
 
         empire_list = self.obj.Empire.values.tolist()
-        un_empire, empire_weight = np.unique(empire_list, return_counts=True)
-        probability_ratio = max(empire_weight)/empire_weight
+        unique_empire, empire_weights = np.unique(empire_list, return_counts=True)
 
-        if len(un_empire) < self.threshold and any(probability_ratio > self.low_b):
-            empire_weight[probability_ratio > self.low_b] = max(empire_weight)/self.low_b
-        else:
-            pass
+        #The ratio between the highest weight and the others.
+        probability_ratio = max(empire_weights)/empire_weights
 
-        empire=random.choices(un_empire, empire_weight)
+        #Returns True if there are less empires than those set by the threshold,
+        #and at least 1 of the probability_ratio exceeds the lowest_empire_weight.
+        if len(unique_empire) < self.empire_size_low_threshold and any(probability_ratio > self.lowest_empire_weight):
+            empire_weights[probability_ratio > self.lowest_empire_weight] = max(empire_weights)/self.lowest_empire_weight
+
+        empires = random.choices(unique_empire, empire_weights)
 
         #empire = random.choice(self.obj.Empire.values.tolist())
-        empire_neighbours = self.obj.query(f'Empire == "{empire[0]}"').iloc[0].empire_neighbours
+        empire_neighbours = self.obj.query(f'Empire == "{empires[0]}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
         defender = random.choice(empire_neighbours)
         defender = Territory(self.obj.loc[defender])
 
         # Find the attackers as the intersection between ∑'s all territories and Ω's neighbours
-        attacker_territories = self.obj.query(f'Empire == "{empire[0]}"').index.values.tolist()
+        attacker_territories = self.obj.query(f'Empire == "{empires[0]}"').index.values.tolist()
         attackers = list(set(attacker_territories) & set(defender.neighbours))
 
         assert len(
@@ -182,22 +184,22 @@ class Reign(object):
             total_votes = 0
 
         # Compute the strength of the attacker and defender
+        attacker_votes = poll_results[attacker.Territory]
+        defender_votes = poll_results[defender.Territory]
+
         if total_votes > 0:
-            attack = attacker.attack() * poll_results[attacker.Territory] / total_votes
-            defense = defender.defend() * poll_results[defender.Territory] / total_votes
+            w = 0.66  # users votes weight 2/3 vs 1/3 random
+            duel = random.random() * (1 - w) + attacker_votes / (attacker_votes + defender_votes) * w
         else:
-            counts = self.obj.groupby("Empire").count().geometry
-            attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
-            defense = defender.defend() * counts[defender.Empire] / len(self.obj)
+            duel = random.random()
 
         # The attacker won
-        if attack > defense:
+        if duel > 0.5:
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
                                                   defender.Territory, attacker.Empire)
 
             # Copy the attacker and defender state as it is before the battle
             old_defender = deepcopy(defender)
-            old_attacker = deepcopy(attacker)
 
             # If the capitol city looses, the attacker takes the whole empire
             if defender.Territory == defender.Empire:
