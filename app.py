@@ -206,18 +206,7 @@ def __main__():
         reign_logger.info(message)
 
 
-<<<<<<< HEAD
-# Alternative loop version to define reigns dictionary
-
-#reigns={}
-#for k in df.COMUNE.values:
-#    reignsb[k.lower()]= Reign(k,df[df.COMUNE==k])
-    
-    
-reigns = {k.lower(): Reign(k, df[df.COMUNE == k]) for k in df.COMUNE.values}
-=======
 if __name__ == "__main__":
->>>>>>> dc3ad6116388fc14aedd10fce7a50709671b228a
 
     app_logger.info("Start BoloWartBot")
     app_logger.debug("Distribution: %s", config["distribution"])
