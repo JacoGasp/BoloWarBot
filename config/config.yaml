@@ -13,10 +13,14 @@ schedule:
     rounds_at_time: [":00", ":15", ":30", ":45"]
     wait_for_poll: 10
 telegram:
-  chat_id_logging: 178108366
+  chat_id_logging: 904141865 #178108366
 saving:
   dir: "temp"
   map_img: "map.png"
   db: "temp.pickle"
   saved_turn: "saved_turn.json"
   stats: "stats.json"
+balance:
+  threshold: 6
+  low_b: 3
+

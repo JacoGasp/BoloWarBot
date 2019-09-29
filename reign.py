@@ -4,6 +4,7 @@ import random
 import logging
 from copy import deepcopy
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
@@ -19,7 +20,7 @@ from territory import Territory
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False):
+    def __init__(self, pandas_obj, threshold, low_b, should_display_map=False):
         self.obj = pandas_obj
         self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
@@ -30,6 +31,10 @@ class Reign(object):
         self.__msg_cache_handler = None
 
         self.battle_round = 1
+
+        self.empire_size_low_threshold = threshold
+        self.lowest_empire_weight = low_b
+
         # random.seed(10)
 
     def __update_empire_neighbours(self, empire):
@@ -116,15 +121,29 @@ class Reign(object):
         """
 
         # Choose ∑
-        empire = random.choice(self.obj.Empire.values.tolist())
-        empire_neighbours = self.obj.query(f'Empire == "{empire}"').iloc[0].empire_neighbours
+
+        empire_list = self.obj.Empire.values.tolist()
+        unique_empire, empire_weights = np.unique(empire_list, return_counts=True)
+
+        #The ratio between the highest weight and the others.
+        probability_ratio = max(empire_weights)/empire_weights
+
+        #Returns True if there are less empires than those set by the threshold,
+        #and at least 1 of the probability_ratio exceeds the lowest_empire_weight.
+        if len(unique_empire) < self.empire_size_low_threshold and any(probability_ratio > self.lowest_empire_weight):
+            empire_weights[probability_ratio > self.lowest_empire_weight] = max(empire_weights)/self.lowest_empire_weight
+
+        empires = random.choices(unique_empire, empire_weights)
+
+        #empire = random.choice(self.obj.Empire.values.tolist())
+        empire_neighbours = self.obj.query(f'Empire == "{empires[0]}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
         defender = random.choice(empire_neighbours)
         defender = Territory(self.obj.loc[defender])
 
         # Find the attackers as the intersection between ∑'s all territories and Ω's neighbours
-        attacker_territories = self.obj.query(f'Empire == "{empire}"').index.values.tolist()
+        attacker_territories = self.obj.query(f'Empire == "{empires[0]}"').index.values.tolist()
         attackers = list(set(attacker_territories) & set(defender.neighbours))
 
         assert len(
@@ -308,7 +327,7 @@ class Reign(object):
             plt.axis('equal')
             plt.tight_layout()
             img = ax.get_figure()
-            plt.show()
+            # plt.show()
 
             # Save the fig to send later
             if not os.path.exists(config["saving"]["dir"]):
