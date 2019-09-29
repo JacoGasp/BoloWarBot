@@ -32,8 +32,8 @@ class Reign(object):
 
         self.battle_round = 1
 
-        self.threshold = threshold
-        self.low_b = low_b
+        self.empire_size_low_threshold = threshold
+        self.lowest_empire_weight = low_b
 
         # random.seed(10)
 
@@ -123,25 +123,27 @@ class Reign(object):
         # Choose ∑
 
         empire_list = self.obj.Empire.values.tolist()
-        un_empire, empire_weight = np.unique(empire_list, return_counts=True)
-        probability_ratio = max(empire_weight)/empire_weight
+        unique_empire, empire_weights = np.unique(empire_list, return_counts=True)
 
-        if len(un_empire) < self.threshold and any(probability_ratio > self.low_b):
-            empire_weight[probability_ratio > self.low_b] = max(empire_weight)/self.low_b
-        else:
-            pass
+        #The ratio between the highest weight and the others.
+        probability_ratio = max(empire_weights)/empire_weights
 
-        empire=random.choices(un_empire, empire_weight)
+        #Returns True if there are less empires than those set by the threshold,
+        #and at least 1 of the probability_ratio exceeds the lowest_empire_weight.
+        if len(unique_empire) < self.empire_size_low_threshold and any(probability_ratio > self.lowest_empire_weight):
+            empire_weights[probability_ratio > self.lowest_empire_weight] = max(empire_weights)/self.lowest_empire_weight
+
+        empires = random.choices(unique_empire, empire_weights)
 
         #empire = random.choice(self.obj.Empire.values.tolist())
-        empire_neighbours = self.obj.query(f'Empire == "{empire[0]}"').iloc[0].empire_neighbours
+        empire_neighbours = self.obj.query(f'Empire == "{empires[0]}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
         defender = random.choice(empire_neighbours)
         defender = Territory(self.obj.loc[defender])
 
         # Find the attackers as the intersection between ∑'s all territories and Ω's neighbours
-        attacker_territories = self.obj.query(f'Empire == "{empire[0]}"').index.values.tolist()
+        attacker_territories = self.obj.query(f'Empire == "{empires[0]}"').index.values.tolist()
         attackers = list(set(attacker_territories) & set(defender.neighbours))
 
         assert len(
