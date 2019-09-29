@@ -6,7 +6,7 @@ schedule:
       start_time: "07:59"
       stop_time: "20:01"
       rounds_at_time: ["10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
-      wait_for_poll: 14
+      wait_for_poll: 119
   develop:
     start_time: "07:59"
     stop_time: "23:50"
