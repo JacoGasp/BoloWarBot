@@ -165,22 +165,22 @@ class Reign(object):
             total_votes = 0
 
         # Compute the strength of the attacker and defender
+        attacker_votes = poll_results[attacker.Territory]
+        defender_votes = poll_results[defender.Territory]
+
         if total_votes > 0:
-            attack = attacker.attack() * poll_results[attacker.Territory] / total_votes
-            defense = defender.defend() * poll_results[defender.Territory] / total_votes
+            w = 0.66  # users votes weight 2/3 vs 1/3 random
+            duel = random.random() * (1 - w) + attacker_votes / (attacker_votes + defender_votes) * w
         else:
-            counts = self.obj.groupby("Empire").count().geometry
-            attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
-            defense = defender.defend() * counts[defender.Empire] / len(self.obj)
+            duel = random.random()
 
         # The attacker won
-        if attack > defense:
+        if duel > 0.5:
             message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
                                                   defender.Territory, attacker.Empire)
 
             # Copy the attacker and defender state as it is before the battle
             old_defender = deepcopy(defender)
-            old_attacker = deepcopy(attacker)
 
             # If the capitol city looses, the attacker takes the whole empire
             if defender.Territory == defender.Empire:
