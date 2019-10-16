@@ -74,7 +74,7 @@ class Reign(object):
 
     def __send_poll(self, attacker, defender):
         try:
-            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, messages['poll'])
+            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Empire, defender.Territory, messages['poll'])
         except TelegramError:
             self.logger.warning("Skip turn")
             return
@@ -142,13 +142,9 @@ class Reign(object):
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
-            message = messages["battle_a"] % (attacker.Territory, defender.Territory)
-        elif attacker.Territory != attacker.Empire and defender.Territory == defender.Empire:
-            message = messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
-        elif attacker.Territory == attacker.Empire and defender.Territory != defender.Empire:
-            message = messages["battle_c"] % (attacker.Territory, defender.Territory, defender.Empire)
+            message = messages["battle_a"] % (attacker.Empire, defender.Empire)
         else:
-            message = messages["battle"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
+            message = messages["battle_b"] % (attacker.Empire, defender.Territory, defender.Empire)
 
         self.logger.info(message)
 
@@ -165,7 +161,7 @@ class Reign(object):
             total_votes = 0
 
         # Compute the strength of the attacker and defender
-        attacker_votes = poll_results[attacker.Territory]
+        attacker_votes = poll_results[attacker.Empire]
         defender_votes = poll_results[defender.Territory]
 
         if total_votes > 0:
@@ -176,15 +172,14 @@ class Reign(object):
 
         # The attacker won
         if duel > 0.5:
-            message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
-                                                  defender.Territory, attacker.Empire)
+            message = messages["attacker_won"] % (attacker.Empire, defender.Territory, defender.Empire)
 
             # Copy the attacker and defender state as it is before the battle
             old_defender = deepcopy(defender)
 
             # If the capitol city looses, the attacker takes the whole empire
             if defender.Territory == defender.Empire:
-                message = messages["capitol_defeated"] % (attacker.Territory, defender.Empire, attacker.Empire)
+                message = messages["capitol_defeated"] % (attacker.Empire, defender.Empire)
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
 
@@ -233,7 +228,7 @@ class Reign(object):
 
         # The defender won
         else:
-            message = messages["defender_won"] % (defender.Territory, attacker.Territory)
+            message = messages["defender_won"] % (defender.Territory, attacker.Empire)
             self.logger.info("Round: %d - %s", self.battle_round, message)
             self.__telegram_handler.send_message(message)
 
