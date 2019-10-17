@@ -32,8 +32,8 @@ class Reign(object):
 
         self.battle_round = 1
 
-        self.empire_size_low_threshold = threshold
-        self.lowest_empire_weight = low_b
+        self.min_empire_size = threshold
+        self.max_empire_weight_ratio = low_b
 
         # random.seed(10)
 
@@ -121,29 +121,25 @@ class Reign(object):
         """
 
         # Choose ∑
-
         empire_list = self.obj.Empire.values.tolist()
-        unique_empire, empire_weights = np.unique(empire_list, return_counts=True)
+        unique_empires, empire_weights = np.unique(empire_list, return_counts=True)
 
-        #The ratio between the highest weight and the others.
-        probability_ratio = max(empire_weights)/empire_weights
+        # If the number of remaining empires is less than threshold, increase the chance to pick up a small empire
+        # to be the attacker
+        if len(unique_empires) < self.min_empire_size:
+            min_empire_weight = max(empire_weights) / self.max_empire_weight_ratio
+            empire_weights[empire_weights < min_empire_weight] = min_empire_weight
 
-        #Returns True if there are less empires than those set by the threshold,
-        #and at least 1 of the probability_ratio exceeds the lowest_empire_weight.
-        if len(unique_empire) < self.empire_size_low_threshold and any(probability_ratio > self.lowest_empire_weight):
-            empire_weights[probability_ratio > self.lowest_empire_weight] = max(empire_weights)/self.lowest_empire_weight
+        empire = random.choices(unique_empires, empire_weights)[0]
 
-        empires = random.choices(unique_empire, empire_weights)
-
-        #empire = random.choice(self.obj.Empire.values.tolist())
-        empire_neighbours = self.obj.query(f'Empire == "{empires[0]}"').iloc[0].empire_neighbours
+        empire_neighbours = self.obj.query(f'Empire == "{empire}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
         defender = random.choice(empire_neighbours)
         defender = Territory(self.obj.loc[defender])
 
         # Find the attackers as the intersection between ∑'s all territories and Ω's neighbours
-        attacker_territories = self.obj.query(f'Empire == "{empires[0]}"').index.values.tolist()
+        attacker_territories = self.obj.query(f'Empire == "{empire}"').index.values.tolist()
         attackers = list(set(attacker_territories) & set(defender.neighbours))
 
         assert len(
@@ -307,8 +303,9 @@ class Reign(object):
             annotate(s=attacker.Empire, xy=attacker.empire_geometry.representative_point().coords[0])
             annotate(s=defender.Empire, xy=defender.empire_geometry.representative_point().coords[0])
 
-            if attacker.Empire != attacker.Territory:
-                annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
+            # Uncomment this to print the attacker's name on the map
+            # if attacker.Empire != attacker.Territory:
+            #     annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
 
             if defender.Empire != defender.Territory:
                 annotate(s=defender.Territory, xy=defender.geometry.representative_point().coords[0])
