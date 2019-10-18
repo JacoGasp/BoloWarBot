@@ -1,3 +1,5 @@
+shapely
+numpy
 descartes
 matplotlib
 geopandas

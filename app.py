@@ -42,7 +42,7 @@ def cancel_jobs():
 def start_main_job():
     for round_time in schedule_config["rounds_at_time"]:
         if config["distribution"] == "production":
-            schedule.every().hour.at(round_time).do(run_threaded, play_turn).tag("main_job")
+            schedule.every().day.at(round_time).do(run_threaded, play_turn).tag("main_job")
         elif config["distribution"] == "develop":
             schedule.every().minute.at(round_time).do(run_threaded, play_turn).tag("main_job")
 
@@ -93,6 +93,8 @@ def init_reign():
     global reign
     df = None
     file_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    threshold = config["balance"]["threshold"]
+    low_b = config["balance"]["low_b"]
     try:
         df = pd.read_pickle(file_path)
         app_logger.info("Saved state successfully loaded")
@@ -103,7 +105,7 @@ def init_reign():
 
     finally:
         if df is not None:
-            reign = Reign(df, should_display_map=FLAGS.map)
+            reign = Reign(df, threshold, low_b, should_display_map=FLAGS.map)
             app_logger.debug("Alive empires: %d" % reign.remaing_territories)
         else:
             raise RuntimeError("Cannot initialize geopandas dataframe")
@@ -204,6 +206,7 @@ def __main__():
         message = messages["the_winner_is"] % the_winner
         telegram_handler.send_message(message)
         reign_logger.info(message)
+
 
 
 if __name__ == "__main__":

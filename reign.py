@@ -4,6 +4,7 @@ import random
 import logging
 from copy import deepcopy
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from descartes import PolygonPatch
@@ -19,7 +20,7 @@ from territory import Territory
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, should_display_map=False):
+    def __init__(self, pandas_obj, threshold, low_b, should_display_map=False):
         self.obj = pandas_obj
         self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
@@ -30,6 +31,10 @@ class Reign(object):
         self.__msg_cache_handler = None
 
         self.battle_round = 1
+
+        self.min_empire_size = threshold
+        self.max_empire_weight_ratio = low_b
+
         # random.seed(10)
 
     def __update_empire_neighbours(self, empire):
@@ -74,7 +79,7 @@ class Reign(object):
 
     def __send_poll(self, attacker, defender):
         try:
-            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Territory, defender.Territory, messages['poll'])
+            message_id, poll_id = self.__telegram_handler.send_poll(attacker.Empire, defender.Territory, messages['poll'])
         except TelegramError:
             self.logger.warning("Skip turn")
             return
@@ -116,7 +121,17 @@ class Reign(object):
         """
 
         # Choose ∑
-        empire = random.choice(self.obj.Empire.values.tolist())
+        empire_list = self.obj.Empire.values.tolist()
+        unique_empires, empire_weights = np.unique(empire_list, return_counts=True)
+
+        # If the number of remaining empires is less than threshold, increase the chance to pick up a small empire
+        # to be the attacker
+        if len(unique_empires) < self.min_empire_size:
+            min_empire_weight = max(empire_weights) / self.max_empire_weight_ratio
+            empire_weights[empire_weights < min_empire_weight] = min_empire_weight
+
+        empire = random.choices(unique_empires, empire_weights)[0]
+
         empire_neighbours = self.obj.query(f'Empire == "{empire}"').iloc[0].empire_neighbours
 
         # Choose the defender Territory among the empire's neighbours
@@ -142,13 +157,9 @@ class Reign(object):
 
         # Send message
         if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
-            message = messages["battle_a"] % (attacker.Territory, defender.Territory)
-        elif attacker.Territory != attacker.Empire and defender.Territory == defender.Empire:
-            message = messages["battle_b"] % (attacker.Territory, attacker.Empire, defender.Territory)
-        elif attacker.Territory == attacker.Empire and defender.Territory != defender.Empire:
-            message = messages["battle_c"] % (attacker.Territory, defender.Territory, defender.Empire)
+            message = messages["battle_a"] % (attacker.Empire, defender.Empire)
         else:
-            message = messages["battle"] % (attacker.Territory, attacker.Empire, defender.Territory, defender.Empire)
+            message = messages["battle_b"] % (attacker.Empire, defender.Territory, defender.Empire)
 
         self.logger.info(message)
 
@@ -165,26 +176,25 @@ class Reign(object):
             total_votes = 0
 
         # Compute the strength of the attacker and defender
+        attacker_votes = poll_results[attacker.Empire]
+        defender_votes = poll_results[defender.Territory]
+
         if total_votes > 0:
-            attack = attacker.attack() * poll_results[attacker.Territory] / total_votes
-            defense = defender.defend() * poll_results[defender.Territory] / total_votes
+            w = 0.66  # users votes weight 2/3 vs 1/3 random
+            duel = random.random() * (1 - w) + attacker_votes / (attacker_votes + defender_votes) * w
         else:
-            counts = self.obj.groupby("Empire").count().geometry
-            attack = attacker.attack() * counts[attacker.Empire] / len(self.obj)
-            defense = defender.defend() * counts[defender.Empire] / len(self.obj)
+            duel = random.random()
 
         # The attacker won
-        if attack > defense:
-            message = messages["attacker_won"] % (attacker.Territory, defender.Territory,
-                                                  defender.Territory, attacker.Empire)
+        if duel > 0.5:
+            message = messages["attacker_won"] % (attacker.Empire, defender.Territory, defender.Empire)
 
             # Copy the attacker and defender state as it is before the battle
             old_defender = deepcopy(defender)
-            old_attacker = deepcopy(attacker)
 
             # If the capitol city looses, the attacker takes the whole empire
             if defender.Territory == defender.Empire:
-                message = messages["capitol_defeated"] % (attacker.Territory, defender.Empire, attacker.Empire)
+                message = messages["capitol_defeated"] % (attacker.Empire, defender.Empire)
                 message += '\n' + messages["defender_defeated"] % defender.Empire
                 message += '\n' + messages["remaining_territories"] % self.remaing_territories
 
@@ -233,7 +243,7 @@ class Reign(object):
 
         # The defender won
         else:
-            message = messages["defender_won"] % (defender.Territory, attacker.Territory)
+            message = messages["defender_won"] % (defender.Territory, attacker.Empire)
             self.logger.info("Round: %d - %s", self.battle_round, message)
             self.__telegram_handler.send_message(message)
 
@@ -293,8 +303,9 @@ class Reign(object):
             annotate(s=attacker.Empire, xy=attacker.empire_geometry.representative_point().coords[0])
             annotate(s=defender.Empire, xy=defender.empire_geometry.representative_point().coords[0])
 
-            if attacker.Empire != attacker.Territory:
-                annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
+            # Uncomment this to print the attacker's name on the map
+            # if attacker.Empire != attacker.Territory:
+            #     annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
 
             if defender.Empire != defender.Territory:
                 annotate(s=defender.Territory, xy=defender.geometry.representative_point().coords[0])
@@ -308,7 +319,7 @@ class Reign(object):
             plt.axis('equal')
             plt.tight_layout()
             img = ax.get_figure()
-            plt.show()
+            # plt.show()
 
             # Save the fig to send later
             if not os.path.exists(config["saving"]["dir"]):
