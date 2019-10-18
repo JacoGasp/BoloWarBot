@@ -22,7 +22,6 @@ class Reign(object):
 
     def __init__(self, pandas_obj, threshold, low_b, should_hide_map=False):
         self.obj = pandas_obj
-        self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
         self.should_hide_map = should_hide_map
 
@@ -36,6 +35,9 @@ class Reign(object):
         self.max_empire_weight_ratio = low_b
 
         # random.seed(10)
+    @property
+    def remaining_empires(self):
+        return len(list(self.obj.Empire.unique()))
 
     def __update_empire_neighbours(self, empire):
         empire_df = self.obj.query(f'Empire == "{empire}"')
@@ -72,10 +74,6 @@ class Reign(object):
         defender_territories_index = self.obj.query(f'Empire == "{defender.Empire}"').index
         index = empire_territories_index.union(defender_territories_index)
         self.obj.loc[index, "empire_geometry"] = [new_geometry] * len(index)
-
-    def __get_alive_empires(self):
-        empires = self.obj.Empire.unique()
-        return list(empires)
 
     def __send_poll(self, attacker, defender):
         try:
@@ -120,6 +118,8 @@ class Reign(object):
             defender, of Ω, resisted
         """
 
+        self.logger.info("Round: %d", self.battle_round)
+
         # Choose ∑
         empire_list = self.obj.Empire.values.tolist()
         unique_empires, empire_weights = np.unique(empire_list, return_counts=True)
@@ -161,7 +161,7 @@ class Reign(object):
         else:
             message = messages["battle_b"] % (attacker.Empire, defender.Territory, defender.Empire)
 
-        self.logger.info(message)
+        self.logger.info(message.replace("\n", " ").replace("*", "").replace("_", ""))
 
         # Send map with caption
         message = "*Round %d:*\n" % self.battle_round + message
@@ -199,39 +199,29 @@ class Reign(object):
             if defender.Territory == defender.Empire:
                 message = messages["capitol_defeated"] % (attacker.Empire, defender.Empire)
                 message += '\n' + messages["defender_defeated"] % defender.Empire
-                message += '\n' + messages["remaining_territories"] % self.remaing_territories
 
                 self.__merge_empires_geometry(attacker=attacker, defender=defender)
                 self.__update_defender_attrs(attacker=attacker, defender=defender)
-                self.remaing_territories = len(self.__get_alive_empires()) - 1
 
+                if self.remaining_empires == 1:     # The war is over
+                    the_winner = self.obj.Empire.unique()[0]
+                    message = messages["the_winner_is"] % the_winner.upper()
+                    self.__send_map_to_bot(attacker=attacker, defender=None, caption=message)
+                    self.logger.info(message.replace("\n", " ").replace("*", "").replace("_", ""))
+                    return
+
+                else:                               # Continue the battle
+                    message += '\n' + messages["remaining_territories"] % self.remaining_empires
             else:
                 # If the empire has more than one territory, reduce its geometry
                 # Change the empire geometry for the whole defender empire
                 # Change the sovereign for the whole defender empire
-                if len(self.obj.query(f'Empire == "{defender.Empire}"')) > 1:
-
-                    defender_empire_index = self.obj.query(f'Empire == "{defender.Empire}"').index
-                    self.obj.loc[defender.Territory, "empire_color"] = attacker.empire_color
-                    self.obj.loc[defender_empire_index, "empire_geometry"] = [self.__reduce_defender_geometry(
-                        defender)] * len(defender_empire_index)
-                    self.obj.loc[defender.Territory]["Empire"] = attacker.Empire
-                    self.__expand_empire_geometry(attacker, old_defender)
-
-                # If the empire has only one territory, the empire has been defeated
-                # Change the defender's Empire, to the attacker one
-                # Change the color for the whole old defender empire
-                # Merge the attacker and defender geometries
-                else:
-                    self.remaing_territories = len(self.__get_alive_empires()) - 1
-                    message += '\n' + messages["defender_defeated"] % defender.Empire
-                    message += '\n' + messages["remaining_territories"] % self.remaing_territories
-
-                    defender_empire_index = self.obj.query(f'Empire == "{defender.Empire}"').index
-                    self.obj.loc[defender_empire_index, "Empire"] = [attacker.Empire] * len(defender_empire_index)
-                    self.obj.loc[defender_empire_index, "empire_color"] = [attacker.empire_color] * len(
-                        defender_empire_index)
-                    self.__merge_empires_geometry(attacker, defender)
+                defender_empire_index = self.obj.query(f'Empire == "{defender.Empire}"').index
+                self.obj.loc[defender.Territory, "empire_color"] = attacker.empire_color
+                self.obj.loc[defender_empire_index, "empire_geometry"] = [self.__reduce_defender_geometry(
+                    defender)] * len(defender_empire_index)
+                self.obj.loc[defender.Territory]["Empire"] = attacker.Empire
+                self.__expand_empire_geometry(attacker, old_defender)
 
             # Update geometries and neighbours
             self.__update_empire_neighbours(attacker.Empire)
@@ -240,14 +230,12 @@ class Reign(object):
 
             # Send map to Telegram
             self.__telegram_handler.send_message(message)
-            # self.__send_map_to_bot(attacker=old_attacker, defender=old_defender, caption=message)
-
-            self.logger.info(message)
+            self.logger.info(message.replace("\n", " ").replace("*", "").replace("_", ""))
 
         # The defender won
         else:
             message = messages["defender_won"] % (defender.Territory, attacker.Empire)
-            self.logger.info("Round: %d - %s", self.battle_round, message)
+            self.logger.info(message.replace("\n", " ").replace("*", "").replace("_", ""))
             self.__telegram_handler.send_message(message)
 
         self.battle_round += 1
@@ -267,10 +255,6 @@ class Reign(object):
 
         fig, ax = plt.subplots(figsize=(12, 12))
         patches = []
-        empires = [e for e in self.obj.Empire.unique() if e != attacker.Empire and e != defender.Empire]
-
-        assert attacker.Empire not in empires, "Attacker's empire in empires"
-        assert defender.Empire not in empires, "Defender's empire in empires"
 
         def annotate(s, xy, fontsize=10):
             ax.annotate(s=self.__better_name(s), xy=list(xy),
@@ -278,42 +262,49 @@ class Reign(object):
                         path_effects=[PathEffects.withStroke(linewidth=2, foreground="k")]
                         )
         try:
-            # Add all empire patches but both attacker and defender territories
-            for empire_name, empire in self.obj.loc[empires].iterrows():
-                color = empire.empire_color
+            if defender is not None:
+                # ---------------------------------------- #
+                # Add all empire patches but both attacker and defender territories
+
+                empires = [e for e in self.obj.Empire.unique() if e != attacker.Empire and e != defender.Empire]
+                for empire_name, empire in self.obj.loc[empires].iterrows():
+                    color = empire.empire_color
+                    patches.append(
+                        PolygonPatch(empire.empire_geometry, alpha=0.75, fc=color, ec="#555555"))
+                    annotate(s=empire_name, xy=empire.empire_geometry.representative_point().coords[0])
+
+                # ---------------------------------------- #
+                # Give to the defender the attacker color and add oblique lines on top the defender area
+
                 patches.append(
-                    PolygonPatch(empire.empire_geometry, alpha=0.75, fc=color, ec="#555555"))
-                annotate(s=empire_name, xy=empire.empire_geometry.representative_point().coords[0])
+                    PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, lw=4, ec="#E1025B"))
 
-            # Give to the defender the attacker color and add oblique lines on top the defender area
-            patches.append(
-                PolygonPatch(defender.empire_geometry, alpha=1, fc=defender.empire_color, lw=4, ec="#E1025B"))
-
-            # Account for geometries composed by multi-polygons
-            if isinstance(defender.geometry, MultiPolygon):
-                for polygon in defender.geometry:
+                # Account for geometries composed by multi-polygons
+                if isinstance(defender.geometry, MultiPolygon):
+                    for polygon in defender.geometry:
+                        ax.add_patch(
+                            Polygon(polygon.exterior.coords, fc=defender.empire_color, lw=2, ec="#E1025B", hatch="//"))
+                else:
                     ax.add_patch(
-                        Polygon(polygon.exterior.coords, fc=defender.empire_color, lw=2, ec="#E1025B", hatch="//"))
-            else:
-                ax.add_patch(
-                    Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=2, ec="#E1025B",
-                            hatch="//"))
+                        Polygon(defender.geometry.exterior.coords, fc=defender.empire_color, lw=2, ec="#E1025B",
+                                hatch="//"))
+
+                annotate(s=defender.Empire, xy=defender.empire_geometry.representative_point().coords[0])
+                if defender.Empire != defender.Territory:
+                    annotate(s=defender.Territory, xy=defender.geometry.representative_point().coords[0])
+
+            # ---------------------------------------- #
+            # Attacker patch
 
             patches.append(
                 PolygonPatch(attacker.empire_geometry, alpha=1, fc=attacker.empire_color, lw=4, ec="#15F505"))
 
-            # Set the attacker and defender titles
+            # Set the attacker name
             annotate(s=attacker.Empire, xy=attacker.empire_geometry.representative_point().coords[0])
-            annotate(s=defender.Empire, xy=defender.empire_geometry.representative_point().coords[0])
 
-            # Uncomment this to print the attacker's name on the map
-            # if attacker.Empire != attacker.Territory:
-            #     annotate(s=attacker.Territory, xy=attacker.geometry.representative_point().coords[0])
-
-            if defender.Empire != defender.Territory:
-                annotate(s=defender.Territory, xy=defender.geometry.representative_point().coords[0])
-
+            # ---------------------------------------- #
             # Add all patches
+
             ax.add_collection(PatchCollection(patches, match_original=True))
 
             ax.set_aspect(1)
@@ -324,19 +315,24 @@ class Reign(object):
             img = ax.get_figure()
             # plt.show()
 
+            # ---------------------------------------- #
             # Save the fig to send later
+
             if not os.path.exists(config["saving"]["dir"]):
                 os.makedirs(config["saving"]["dir"])
-            img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
+            file_name = f"map{self.battle_round:04}.png"
+            img_path = os.path.join(config["saving"]["dir"], file_name)
             img.savefig(img_path)
             plt.close(fig)
+
         except (AttributeError, KeyError, ValueError, OSError) as e:
             self.logger.error("Error drawing map for attacker: %s; defender %s with error: %s", attacker.Territory,
                               defender.Territory, e)
             raise e
 
     def __send_map_to_bot(self, attacker, defender, caption):
-        img_path = os.path.join(config["saving"]["dir"], config["saving"]["map_img"])
+        file_name = f"map{self.battle_round:04}.png"
+        img_path = os.path.join(config["saving"]["dir"], file_name)
         self.draw_map(attacker=attacker, defender=defender)
         self.__telegram_handler.send_image(img_path, caption=caption, battle_round=self.battle_round)
 

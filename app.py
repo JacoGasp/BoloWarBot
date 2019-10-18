@@ -30,9 +30,10 @@ FLAGS = None
 PLAY = False
 reign = None
 saved_turn = None
-
+war_continues = False
 
 # ---------------------------------------- #
+
 
 def cancel_jobs():
     for job in schedule.jobs:
@@ -47,7 +48,9 @@ def start_main_job():
             schedule.every().minute.at(round_time).do(run_threaded, play_turn).tag("main_job")
 
     next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
-    app_logger.info("The Battle continues. Next turn will be at %s", next_run)
+
+    if war_continues:
+        app_logger.info("The War continues. Next turn will be at %s", next_run)
 
 
 def cancel_main_job():
@@ -63,7 +66,6 @@ def exit_app(signum, _):
     global PLAY
     PLAY = False
     app_logger.info("Closing the BoloWarBot")
-    save_temp()
     cancel_jobs()
 
 
@@ -90,7 +92,7 @@ def save_temp():
 
 
 def init_reign():
-    global reign
+    global reign, war_continues
     df = None
     file_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
     threshold = config["balance"]["threshold"]
@@ -98,6 +100,7 @@ def init_reign():
     try:
         df = pd.read_pickle(file_path)
         app_logger.info("Saved state successfully loaded")
+        war_continues = True
 
     except (FileNotFoundError, OSError):
         df = pd.read_pickle(config["db"]["path"])
@@ -106,7 +109,7 @@ def init_reign():
     finally:
         if df is not None:
             reign = Reign(df, threshold, low_b, should_hide_map=FLAGS.hide_map)
-            app_logger.debug("Alive empires: %d" % reign.remaing_territories)
+            app_logger.debug("Alive empires: %d" % reign.remaining_empires)
         else:
             raise RuntimeError("Cannot initialize geopandas dataframe")
 
@@ -121,8 +124,6 @@ def play_turn():
     if saved_turn is not None:
         saved_turn["battle_round"] = reign.battle_round
 
-    app_logger.info(f"Round {reign.battle_round}")
-
     try:
         reign.battle()
 
@@ -131,14 +132,15 @@ def play_turn():
         app_logger.error(error_message)
         telegram_handler.bot.send_message(chat_id=config["telegram"]["chat_id_logging"], text=error_message)
 
-    if reign.remaing_territories == 0:
+    # If the war is not end schedule the next round
+    if reign.remaining_empires > 1:
+        next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
+        app_logger.info("Next turn will be at %s", next_run)
+    else:
         PLAY = False
 
     # Save the partial battle state
     save_temp()
-
-    next_run = schedule.next_run().strftime("%Y-%m-%d %H:%M:%S")
-    app_logger.info("Next turn will be at %s", next_run)
 
 
 def run_threaded(job_func):
@@ -180,7 +182,7 @@ def __main__():
     # ---------------------------------------- #
     # Schedule the turns
 
-    if reign.remaing_territories > 1:
+    if reign.remaining_empires > 1:
         global PLAY
         PLAY = True
         schedule.every().day.at(schedule_config["start_time"]).do(start_main_job).tag("start_job")
@@ -188,7 +190,7 @@ def __main__():
         start_main_job()
 
     else:
-        app_logger.warning("The war is over")
+        app_logger.warning("The war is already over. Please empty your temp folder to start a new battle.")
 
     # ---------------------------------------- #
     # Start the battle
@@ -200,12 +202,7 @@ def __main__():
     # ---------------------------------------- #
     # End of the war
 
-    if reign.remaing_territories <= 1:
-        cancel_jobs()
-        the_winner = reign.obj.groupby("Empire").count().query("color > 1").iloc[0].name
-        message = messages["the_winner_is"] % the_winner
-        telegram_handler.send_message(message)
-        reign_logger.info(message)
+    cancel_jobs()
 
 
 if __name__ == "__main__":
