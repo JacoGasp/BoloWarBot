@@ -20,11 +20,11 @@ from territory import Territory
 @pd.api.extensions.register_dataframe_accessor('reign')
 class Reign(object):
 
-    def __init__(self, pandas_obj, threshold, low_b, should_display_map=False):
+    def __init__(self, pandas_obj, threshold, low_b, should_hide_map=False):
         self.obj = pandas_obj
         self.remaing_territories = len(self.__get_alive_empires())
         self.alive_empires = list(pandas_obj.index.values)
-        self.should_display_map = should_display_map
+        self.should_hide_map = should_hide_map
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.__telegram_handler = None
@@ -165,7 +165,10 @@ class Reign(object):
 
         # Send map with caption
         message = "*Round %d:*\n" % self.battle_round + message
-        self.__send_map_to_bot(attacker=attacker, defender=defender, caption=message)
+        if self.should_hide_map:
+            self.__telegram_handler.send_message(message)
+        else:
+            self.__send_map_to_bot(attacker=attacker, defender=defender, caption=message)
 
         # Send poll. If cannot open poll skip the turn
         poll_results = self.__send_poll(attacker, defender)

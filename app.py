@@ -105,7 +105,7 @@ def init_reign():
 
     finally:
         if df is not None:
-            reign = Reign(df, threshold, low_b, should_display_map=FLAGS.map)
+            reign = Reign(df, threshold, low_b, should_hide_map=FLAGS.hide_map)
             app_logger.debug("Alive empires: %d" % reign.remaing_territories)
         else:
             raise RuntimeError("Cannot initialize geopandas dataframe")
@@ -208,7 +208,6 @@ def __main__():
         reign_logger.info(message)
 
 
-
 if __name__ == "__main__":
 
     app_logger.info("Start BoloWartBot")
@@ -217,7 +216,7 @@ if __name__ == "__main__":
     # Parse arguments
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--map", "-m", action="store_true", help="If present, display the map")
+    parser.add_argument("--hide-map", "-H", action="store_true", help="If present, hide the map")
     FLAGS = parser.parse_args()
 
     # ---------------------------------------- #
