@@ -74,15 +74,15 @@ class MsgCacheHandler(object):
     def add_photo_to_cache(self, caption, battle_round=None):
         self.__lock.acquire()
         if battle_round is not None:
-            fname = self.persist_dir + f"img_round{battle_round}.png"
+            fname = self.persist_dir + f"map{battle_round:04}.png"
         else:
-            fname = config["saving"]["dir"] + "/img.png"
+            fname = config["saving"]["dir"] + "/map.png"
 
         msg_to_cache = {"type": "image", "fname": fname, "caption": caption}
         self.msg_list.append(msg_to_cache)
         try:
             if battle_round is not None:
-                os.rename(config["saving"]["dir"] + "/img.png", fname)
+                os.rename(config["saving"]["dir"] + "/map.png", fname)
             with open(self.msg_cache_file, 'wb') as msg_file:
                 pickle.dump(self.msg_list, msg_file)
         except OSError as ex:

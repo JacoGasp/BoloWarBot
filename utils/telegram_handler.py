@@ -14,7 +14,7 @@ class TelegramHandler(object):
         # Start the Telegram updater
         self.token = token
         self.chat_id = chat_id
-        self.updater = Updater(token=token)
+        self.updater = Updater(token=token, use_context=True)
         self.dispatcher = self.updater.dispatcher
         self.bot = self.dispatcher.bot
         self.logger = logging.getLogger(self.__class__.__name__)
