@@ -13,7 +13,7 @@ from matplotlib.collections import PatchCollection
 import matplotlib.patheffects as PathEffects
 from shapely.geometry.multipolygon import MultiPolygon
 from telegram import TelegramError
-from utils.utils import messages, config, schedule_config
+from utils.utils import messages, config, schedule_config, saving_config
 from territory import Territory
 
 
@@ -318,10 +318,10 @@ class Reign(object):
             # ---------------------------------------- #
             # Save the fig to send later
 
-            if not os.path.exists(config["saving"]["dir"]):
-                os.makedirs(config["saving"]["dir"])
+            if not os.path.exists(saving_config["dir"]):
+                os.makedirs(saving_config["dir"])
             file_name = f"map{self.battle_round:04}.png"
-            img_path = os.path.join(config["saving"]["dir"], file_name)
+            img_path = os.path.join(saving_config["dir"], file_name)
             img.savefig(img_path)
             plt.close(fig)
 
@@ -332,7 +332,7 @@ class Reign(object):
 
     def __send_map_to_bot(self, attacker, defender, caption):
         file_name = f"map{self.battle_round:04}.png"
-        img_path = os.path.join(config["saving"]["dir"], file_name)
+        img_path = os.path.join(saving_config["dir"], file_name)
         self.draw_map(attacker=attacker, defender=defender)
         self.__telegram_handler.send_image(img_path, caption=caption, battle_round=self.battle_round)
 

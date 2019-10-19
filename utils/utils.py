@@ -24,5 +24,6 @@ def load_configs():
 config = load_configs()
 config["distribution"] = distribution
 schedule_config = config["schedule"][distribution]
+saving_config = config["saving"][distribution]
 
 messages = load_messages(config["language"])

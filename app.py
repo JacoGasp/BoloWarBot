@@ -15,7 +15,7 @@ from utils.functions import get_sig_dict, read_saved_turn
 from utils.telegram_handler import TelegramHandler
 from utils.cache_handler import MsgCacheHandler
 from utils.stats_handler import StatsHandler
-from utils.utils import messages, config, schedule_config, token, chat_id
+from utils.utils import messages, config, schedule_config, saving_config, token, chat_id
 
 reign_logger = logging.getLogger("Reign")
 app_logger = logging.getLogger("App")
@@ -71,11 +71,11 @@ def exit_app(signum, _):
 
 def save_temp():
     if reign.obj is not None:
-        if not os.path.exists(config["saving"]["dir"]):
-            os.makedirs(config["saving"]["dir"])
+        if not os.path.exists(saving_config["dir"]):
+            os.makedirs(saving_config["dir"])
 
-    df_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
-    saved_turn_path = os.path.join(config["saving"]["dir"], config["saving"]["saved_turn"])
+    df_path = os.path.join(saving_config["dir"], saving_config["db"])
+    saved_turn_path = os.path.join(saving_config["dir"], saving_config["saved_turn"])
     try:
         if saved_turn is not None:
             with open(saved_turn_path, "w") as f:
@@ -94,7 +94,7 @@ def save_temp():
 def init_reign():
     global reign, war_continues
     df = None
-    file_path = os.path.join(config["saving"]["dir"], config["saving"]["db"])
+    file_path = os.path.join(saving_config["dir"], saving_config["db"])
     threshold = config["balance"]["threshold"]
     low_b = config["balance"]["low_b"]
     try:
@@ -155,7 +155,7 @@ def __main__():
 
     init_reign()
     global saved_turn
-    saved_turn = read_saved_turn(os.path.join(config["saving"]["dir"], config["saving"]["saved_turn"]), app_logger)
+    saved_turn = read_saved_turn(os.path.join(saving_config["dir"], saving_config["saved_turn"]), app_logger)
 
     # ---------------------------------------- #
     # Init data handlers
@@ -164,7 +164,7 @@ def __main__():
 
     telegram_handler = TelegramHandler(token=token, chat_id=chat_id)
     msg_cache_handler = MsgCacheHandler()
-    stats_handler = StatsHandler(file_path=os.path.join(config["saving"]["dir"], config["saving"]["stats"]))
+    stats_handler = StatsHandler(file_path=os.path.join(saving_config["dir"], saving_config["stats"]))
 
     reign.telegram_handler = telegram_handler
     telegram_handler.msg_cache_handler = msg_cache_handler
