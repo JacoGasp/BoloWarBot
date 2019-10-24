@@ -156,7 +156,7 @@ class Reign(object):
                                                               f"in defender empire {defender.Empire}"
 
         # Send message
-        if attacker.Territory == attacker.Empire and defender.Territory == defender.Empire:
+        if defender.Territory == defender.Empire:
             message = messages["battle_a"] % (attacker.Empire, defender.Empire)
         else:
             message = messages["battle_b"] % (attacker.Empire, defender.Territory, defender.Empire)
